@@ -1,0 +1,110 @@
+/* stylelint-disable scss/at-rule-no-unknown */
+@import 'highlight.js/styles/github-dark.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        color-scheme: light;
+        --bg: 0 0% 100%;
+        --panel: 220 20% 98%;
+        --panel-border: 220 13% 91%;
+        --text: 222 47% 11%;
+        --text-muted: 215 16% 47%;
+    }
+
+    .dark {
+        color-scheme: dark;
+        --bg: 224 71% 4%;
+        --panel: 220 26% 10%;
+        --panel-border: 217 19% 20%;
+        --text: 210 20% 98%;
+        --text-muted: 215 20% 65%;
+    }
+
+    html,
+    body {
+        background: hsl(var(--bg));
+        color: hsl(var(--text));
+    }
+
+    body {
+        font-family: theme('fontFamily.sans');
+    }
+
+    ::selection {
+        background: theme('colors.brand.200');
+        color: theme('colors.brand.900');
+    }
+
+    .dark ::selection {
+        background: theme('colors.brand.700');
+        color: white;
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: rgb(0 0 0 / 15%);
+        border-radius: 999px;
+    }
+
+    .dark ::-webkit-scrollbar-thumb {
+        background: rgb(255 255 255 / 15%);
+    }
+}
+
+@layer components {
+    .panel {
+        @apply rounded-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-soft;
+    }
+
+    .btn {
+        @apply inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition;
+        @apply border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900;
+        @apply text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800;
+    }
+
+    .btn-primary {
+        @apply bg-brand-600 text-white border-brand-600 hover:bg-brand-700;
+    }
+
+    .chip {
+        @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+    }
+
+    .chip-good {
+        @apply bg-emerald-500/15 text-emerald-700 dark:text-emerald-300;
+    }
+
+    .chip-warn {
+        @apply bg-amber-500/15 text-amber-700 dark:text-amber-300;
+    }
+
+    .chip-bad {
+        @apply bg-rose-500/15 text-rose-700 dark:text-rose-300;
+    }
+
+    .kbd {
+        @apply inline-flex items-center rounded border border-slate-300 dark:border-slate-600;
+        @apply bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono;
+        @apply text-slate-700 dark:text-slate-200;
+    }
+}
+
+@layer utilities {
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+}
+

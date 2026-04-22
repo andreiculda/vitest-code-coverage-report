@@ -1,0 +1,47 @@
+{
+    "name": "vitest-code-coverage-report",
+    "version": "1.0.0",
+    "private": false,
+    "type": "module",
+    "description": "Modern self-hosted report for Istanbul/V8 coverage-final.json",
+    "bin": {
+        "code-coverage-report": "./bin/code-coverage-report.js"
+    },
+    "files": [
+        "bin",
+        "dist",
+        "server",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "dev": "vite",
+        "build": "vue-tsc --noEmit && vite build",
+        "preview": "vite preview",
+        "start": "node ./bin/code-coverage-report.js",
+        "prepublishOnly": "npm run build"
+    },
+    "keywords": [
+        "vitest",
+        "coverage",
+        "istanbul",
+        "v8",
+        "vue"
+    ],
+    "dependencies": {
+        "@iconify/vue": "^5.0.0",
+        "dompurify": "^3.4.1",
+        "highlight.js": "^11.11.1",
+        "vue": "^3.5.13"
+    },
+    "devDependencies": {
+        "@types/node": "^25.6.0",
+        "@vitejs/plugin-vue": "^6.0.2",
+        "autoprefixer": "^10.4.20",
+        "postcss": "^8.4.49",
+        "tailwindcss": "^3.4.16",
+        "typescript": "^5.8.3",
+        "vite": "^7.3.1",
+        "vue-tsc": "^2.2.0"
+    }
+}
