@@ -83,3 +83,25 @@ npm install
 npm run build
 npm run start
 ```
+
+## Versioning and releases
+
+This package uses Changesets for versioning and publishing.
+
+```bash
+# create a changeset for your changes
+npm run changeset
+
+# apply pending changesets and update the package version/changelog
+npm run version-packages
+
+# publish to npm (also runs build first)
+npm run release
+```
+
+The GitHub Actions workflow at `.github/workflows/release.yml` will:
+
+- open/update a release PR when changesets are present on `main`
+- publish to npm automatically after the release PR is merged
+
+Add `NPM_TOKEN` in GitHub repository secrets to enable publishing.
