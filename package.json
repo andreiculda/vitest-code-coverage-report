@@ -5,7 +5,7 @@
     "type": "module",
     "description": "Modern self-hosted report for Istanbul/V8 coverage-final.json",
     "bin": {
-        "code-coverage-report": "./bin/code-coverage-report.js"
+        "code-coverage-report": "bin/code-coverage-report.js"
     },
     "files": [
         "bin",

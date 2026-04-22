@@ -19,10 +19,16 @@ function parseArgs(argv) {
         coverageFile: null,
         port: 5179,
         open: true,
+        watch: false,
+        vitestArgs: [],
     }
 
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i]
+        if (arg === '--') {
+            options.vitestArgs = argv.slice(i + 1)
+            break
+        }
         if (arg === '--help' || arg === '-h') {
             options.help = true
         } else if (arg === '--root' || arg === '-r') {
@@ -38,6 +44,10 @@ function parseArgs(argv) {
             options.open = false
         } else if (arg === '--open') {
             options.open = true
+        } else if (arg === '--watch' || arg === '-w') {
+            options.watch = true
+        } else if (options.watch) {
+            options.vitestArgs.push(arg)
         }
     }
 
@@ -54,8 +64,10 @@ Options:
   -r, --root <path>             Project root that contains coverage and source files
   -c, --coverage-file <path>    Coverage JSON path (defaults to <root>/coverage/coverage-final.json)
   -p, --port <number>           Port to run server on (default: 5179)
+  -w, --watch                   Run Vitest in watch mode with coverage
       --open                    Open browser on start (default)
       --no-open                 Do not open browser on start
+      -- <args...>              Forward args to Vitest
   -h, --help                    Show help
 `)
 }
@@ -85,6 +97,16 @@ function openBrowser(url) {
         return
     }
     spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref()
+}
+
+function resolveVitestCli(root) {
+    return path.resolve(root, 'node_modules', 'vitest', 'vitest.mjs')
+}
+
+function stopChild(child) {
+    if (child && !child.killed) {
+        child.kill('SIGTERM')
+    }
 }
 
 function createServer({ root, coverageFile, distDir }) {
@@ -189,4 +211,33 @@ export async function runCli(argv = process.argv.slice(2)) {
     if (options.open) {
         openBrowser(url)
     }
+
+    if (!options.watch) {
+        return
+    }
+
+    const vitestCli = resolveVitestCli(root)
+    if (!fs.existsSync(vitestCli)) {
+        throw new Error(`Vitest CLI not found at ${vitestCli}. Install vitest in the target project first.`)
+    }
+
+    const vitestWatcher = spawn(
+        process.execPath,
+        [vitestCli, 'run', '--watch', '--coverage', '--coverage.reporter=json', ...options.vitestArgs],
+        { cwd: root, stdio: 'inherit' },
+    )
+
+    let isShuttingDown = false
+    const shutdown = () => {
+        if (isShuttingDown) {
+            return
+        }
+        isShuttingDown = true
+        stopChild(vitestWatcher)
+        server.close()
+    }
+
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
+    vitestWatcher.on('exit', shutdown)
 }

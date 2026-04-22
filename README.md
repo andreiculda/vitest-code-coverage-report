@@ -57,15 +57,31 @@ code-coverage-report --root ./my-app --port 5180 --no-open
 - `--root, -r <path>`: target project root (default: current directory)
 - `--coverage-file, -c <path>`: explicit coverage JSON path
 - `--port, -p <number>`: server port (default: `5179`)
+- `--watch, -w`: also run `vitest run --watch --coverage --coverage.reporter=json`
 - `--open` / `--no-open`: control browser auto-open
+- `-- <args...>`: pass filters/options through to Vitest when `--watch` is enabled
 - `--help, -h`: print usage help
+
+### Watch mode examples
+
+Run viewer + Vitest watch together:
+
+```bash
+npx code-coverage-report --watch
+```
+
+Filter to one spec while still watching dependency changes:
+
+```bash
+npx code-coverage-report --watch -- App.spec.ts
+```
 
 ## NPM script example
 
 ```json
 {
     "scripts": {
-        "coverage:report": "code-coverage-report"
+        "coverage:report": "code-coverage-report --watch"
     }
 }
 ```
@@ -73,7 +89,7 @@ code-coverage-report --root ./my-app --port 5180 --no-open
 Then run:
 
 ```bash
-npm run coverage:report
+npm run coverage:report -- App.spec.ts
 ```
 
 ## Development
@@ -83,25 +99,3 @@ npm install
 npm run build
 npm run start
 ```
-
-## Versioning and releases
-
-This package uses Changesets for versioning and publishing.
-
-```bash
-# create a changeset for your changes
-npm run changeset
-
-# apply pending changesets and update the package version/changelog
-npm run version-packages
-
-# publish to npm (also runs build first)
-npm run release
-```
-
-The GitHub Actions workflow at `.github/workflows/release.yml` will:
-
-- open/update a release PR when changesets are present on `main`
-- publish to npm automatically after the release PR is merged
-
-Add `NPM_TOKEN` in GitHub repository secrets to enable publishing.
