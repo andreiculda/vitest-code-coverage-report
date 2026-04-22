@@ -17,7 +17,7 @@ It provides:
 npm i -D vitest-code-coverage-report
 ```
 
-## Use in any Vitest project
+## Quick start (any Vitest project)
 
 1. Make sure Vitest emits JSON coverage:
 
@@ -34,19 +34,21 @@ export default defineConfig({
 })
 ```
 
-2. Generate coverage:
-
-```bash
-npx vitest --coverage
-```
-
-3. Start the viewer:
+2. Run tests with coverage and start the viewer:
 
 ```bash
 npx code-coverage-report
 ```
 
-The viewer runs at `http://127.0.0.1:5179`.
+3. Optional: run only specific test files:
+
+```bash
+npx code-coverage-report -- App.spec.ts
+```
+
+The viewer runs at `http://127.0.0.1:5179`. By default, the CLI runs:
+
+`vitest run --coverage --coverage.reporter=json`
 
 ## CLI options
 
@@ -57,12 +59,20 @@ code-coverage-report --root ./my-app --port 5180 --no-open
 - `--root, -r <path>`: target project root (default: current directory)
 - `--coverage-file, -c <path>`: explicit coverage JSON path
 - `--port, -p <number>`: server port (default: `5179`)
-- `--watch, -w`: also run `vitest run --watch --coverage --coverage.reporter=json`
+- `--watch, -w`: run `vitest run --watch --coverage --coverage.reporter=json`
+- `--run-vitest`: run Vitest before starting the viewer (default)
+- `--no-vitest`: start only the viewer server
 - `--open` / `--no-open`: control browser auto-open
-- `-- <args...>`: pass filters/options through to Vitest when `--watch` is enabled
+- `-- <args...>`: pass files/filters/options through to Vitest
 - `--help, -h`: print usage help
 
-### Watch mode examples
+### Command examples
+
+Run tests once with coverage, then open viewer:
+
+```bash
+npx code-coverage-report
+```
 
 Run viewer + Vitest watch together:
 
@@ -76,12 +86,19 @@ Filter to one spec while still watching dependency changes:
 npx code-coverage-report --watch -- App.spec.ts
 ```
 
+Run only the viewer server (no Vitest process):
+
+```bash
+npx code-coverage-report --no-vitest
+```
+
 ## NPM script example
 
 ```json
 {
     "scripts": {
-        "coverage:report": "code-coverage-report --watch"
+        "coverage:report": "code-coverage-report",
+        "coverage:watch-report": "code-coverage-report --watch"
     }
 }
 ```
@@ -90,6 +107,19 @@ Then run:
 
 ```bash
 npm run coverage:report -- App.spec.ts
+```
+
+## How coverage file discovery works
+
+By default, the CLI uses the current working directory as project root and reads:
+
+`<root>/coverage/coverage-final.json`
+
+Use overrides when needed:
+
+```bash
+code-coverage-report --root ./apps/web
+code-coverage-report --coverage-file ./artifacts/coverage/coverage-final.json
 ```
 
 ## Development
