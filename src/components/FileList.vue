@@ -99,14 +99,16 @@
                                     :icon="fileIconFor(entry.relPath)"
                                     class="h-4 w-4 flex-shrink-0"
                                 />
-                                <template
-                                    v-for="(part, idx) in highlightedParts(entry.name)"
-                                    :key="idx"
-                                >
-                                    <span :class="part.isMatch ? 'bg-amber-300/45 dark:bg-amber-500/35 rounded-[2px]' : ''">
-                                        {{ part.value }}
-                                    </span>
-                                </template>
+                                <span class="truncate min-w-0">
+                                    <template
+                                        v-for="(part, idx) in highlightedParts(entry.name)"
+                                        :key="idx"
+                                    >
+                                        <span :class="part.isMatch ? 'bg-amber-300/45 dark:bg-amber-500/35 rounded-[2px]' : ''">
+                                            {{ part.value }}
+                                        </span>
+                                    </template>
+                                </span>
                             </div>
                             <div
                                 class="truncate font-mono text-[11px] text-slate-500 dark:text-slate-400 pl-5"
@@ -131,14 +133,16 @@
                                 icon="vscode-icons:default-folder"
                                 class="h-4 w-4 flex-shrink-0"
                             />
-                            <template
-                                v-for="(part, idx) in highlightedParts(entry.name)"
-                                :key="idx"
-                            >
-                                <span :class="part.isMatch ? 'bg-amber-300/45 dark:bg-amber-500/35 rounded-[2px]' : ''">
-                                    {{ part.value }}
-                                </span>
-                            </template>
+                            <span class="truncate min-w-0">
+                                <template
+                                    v-for="(part, idx) in highlightedParts(entry.name)"
+                                    :key="idx"
+                                >
+                                    <span :class="part.isMatch ? 'bg-amber-300/45 dark:bg-amber-500/35 rounded-[2px]' : ''">
+                                        {{ part.value }}
+                                    </span>
+                                </template>
+                            </span>
                         </div>
                     </td>
                     <td class="px-3 py-2">
@@ -209,18 +213,47 @@ const emit = defineEmits<{
 }>()
 
 type SortKey = 'path' | 'statements' | 'branches' | 'functions' | 'lines'
+type SortDirection = 'asc' | 'desc'
+const SORT_STORAGE_KEY = 'coverage-report:file-list-sort'
 const sortKey = ref<SortKey>('path')
-const sortDir = ref<'asc' | 'desc'>('asc')
+const sortDir = ref<SortDirection>('asc')
 const EMPTY_METRIC: MetricTotals = { total: 0, covered: 0, coveragePercentage: 100 }
 const normalizedCurrentFolderPath = computed(() => currentFolderPath.replace(/^\/+|\/+$/g, ''))
+
+function readPersistedSortState (): { key: SortKey; dir: SortDirection } | null {
+    if (typeof window === 'undefined') return null
+    try {
+        const raw = window.localStorage.getItem(SORT_STORAGE_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw) as { key?: SortKey; dir?: SortDirection }
+        const validKey = ['path', 'statements', 'branches', 'functions', 'lines'].includes(parsed.key ?? '')
+        const validDir = parsed.dir === 'asc' || parsed.dir === 'desc'
+        if (!validKey || !validDir || !parsed.key || !parsed.dir) return null
+        return { key: parsed.key, dir: parsed.dir }
+    } catch {
+        return null
+    }
+}
+
+function persistSortState (): void {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ key: sortKey.value, dir: sortDir.value }))
+}
+
+const initialSortState = readPersistedSortState()
+if (initialSortState) {
+    sortKey.value = initialSortState.key
+    sortDir.value = initialSortState.dir
+}
 
 function toggleSort (key: SortKey): void {
     if (sortKey.value === key) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
     } else {
         sortKey.value = key
-        sortDir.value = key === 'path' ? 'asc' : 'asc'
+        sortDir.value = 'asc'
     }
+    persistSortState()
 }
 
 function sortArrow (key: SortKey): string {
@@ -244,25 +277,23 @@ const entries = computed(() => {
     const q = query.trim().toLowerCase()
     const folders = new Map<string, FolderEntry['stats']>()
 
-    // Build a complete folder index (all folders and subfolders).
+    // Build only first-level folder entries from the project root.
     for (const file of files) {
         const parts = file.relPath.split('/').filter(Boolean)
         if (parts.length <= 1) continue
-        for (let i = 1; i < parts.length; i++) {
-            const folderPath = parts.slice(0, i).join('/')
-            const prev = folders.get(folderPath) ?? {
-                statements: { ...EMPTY_METRIC },
-                branches: { ...EMPTY_METRIC },
-                functions: { ...EMPTY_METRIC },
-                lines: { ...EMPTY_METRIC },
-            }
-            folders.set(folderPath, {
-                statements: addMetric(prev.statements, file.statements),
-                branches: addMetric(prev.branches, file.branches),
-                functions: addMetric(prev.functions, file.functions),
-                lines: addMetric(prev.lines, file.lines),
-            })
+        const folderPath = parts[0]
+        const prev = folders.get(folderPath) ?? {
+            statements: { ...EMPTY_METRIC },
+            branches: { ...EMPTY_METRIC },
+            functions: { ...EMPTY_METRIC },
+            lines: { ...EMPTY_METRIC },
         }
+        folders.set(folderPath, {
+            statements: addMetric(prev.statements, file.statements),
+            branches: addMetric(prev.branches, file.branches),
+            functions: addMetric(prev.functions, file.functions),
+            lines: addMetric(prev.lines, file.lines),
+        })
     }
 
     let folderEntries: FolderEntry[] = [...folders.entries()]
@@ -273,12 +304,6 @@ const entries = computed(() => {
         }))
     if (q) folderEntries = folderEntries.filter((entry) => entry.relPath.toLowerCase().includes(q))
 
-    const dir = sortDir.value === 'asc' ? 1 : -1
-    const key = sortKey.value
-    folderEntries.sort((a, b) => {
-        if (key === 'path') return a.relPath.localeCompare(b.relPath) * dir
-        return (a.stats[key].coveragePercentage - b.stats[key].coveragePercentage) * dir
-    })
     return folderEntries
 })
 
@@ -293,12 +318,7 @@ const fileEntries = computed(() => {
         if (!q) return true
         return file.relPath.toLowerCase().includes(q) || remainder.toLowerCase().includes(q)
     })
-    const dir = sortDir.value === 'asc' ? 1 : -1
-    const key = sortKey.value
-    return [...directFiles].sort((a, b) => {
-        if (key === 'path') return a.relPath.localeCompare(b.relPath) * dir
-        return (a[key].coveragePercentage - b[key].coveragePercentage) * dir
-    })
+    return directFiles
 })
 
 const nestedFolderEntries = computed(() => {
@@ -338,31 +358,43 @@ const nestedFolderEntries = computed(() => {
             name: fileNameOnly(relPath),
             stats,
         }))
-        .sort((a, b) => a.name.localeCompare(b.name))
 })
 
 const globalSearchFileEntries = computed(() => {
     const q = query.trim().toLowerCase()
     if (!q) return [] as FileStats[]
-    const dir = sortDir.value === 'asc' ? 1 : -1
-    const key = sortKey.value
-
     const filtered = files.filter((file) => {
         const path = file.relPath.toLowerCase()
         const fileName = fileNameOnly(file.relPath).toLowerCase()
         return path.includes(q) || fileName.includes(q)
     })
 
-    return [...filtered].sort((a, b) => {
-        if (key === 'path') return a.relPath.localeCompare(b.relPath) * dir
-        return (a[key].coveragePercentage - b[key].coveragePercentage) * dir
-    })
+    return filtered
 })
+
+function sortDisplayEntries (list: DisplayEntry[]): DisplayEntry[] {
+    const key = sortKey.value
+    const dir = sortDir.value === 'asc' ? 1 : -1
+    const compareEntries = (a: DisplayEntry, b: DisplayEntry): number => {
+        if (key === 'path') {
+            return a.relPath.localeCompare(b.relPath) * dir
+        }
+        const aCoverage = Number.isFinite(a.stats[key].coveragePercentage) ? a.stats[key].coveragePercentage : -1
+        const bCoverage = Number.isFinite(b.stats[key].coveragePercentage) ? b.stats[key].coveragePercentage : -1
+        const delta = aCoverage - bCoverage
+        if (delta !== 0) return delta * dir
+        return a.relPath.localeCompare(b.relPath) * dir
+    }
+
+    const folders = list.filter((entry) => entry.kind === 'folder').sort(compareEntries)
+    const files = list.filter((entry) => entry.kind === 'file').sort(compareEntries)
+    return [...folders, ...files]
+}
 
 const displayedEntries = computed<DisplayEntry[]>(() => {
     const hasSearch = query.trim().length > 0
     if (hasSearch) {
-        return globalSearchFileEntries.value.map((file) => ({
+        const searchEntries: DisplayEntry[] = globalSearchFileEntries.value.map((file) => ({
             kind: 'file',
             name: fileNameOnly(file.relPath),
             relPath: file.relPath,
@@ -374,15 +406,17 @@ const displayedEntries = computed<DisplayEntry[]>(() => {
                 lines: file.lines,
             },
         }))
+        return sortDisplayEntries(searchEntries)
     }
 
     if (!inFolderMode.value) {
-        return entries.value.map((entry) => ({
+        const rootEntries: DisplayEntry[] = entries.value.map((entry) => ({
             kind: 'folder',
             name: entry.name,
             relPath: entry.relPath,
             stats: entry.stats,
         }))
+        return sortDisplayEntries(rootEntries)
     }
     const folders = nestedFolderEntries.value.map((entry) => ({
         kind: 'folder' as const,
@@ -402,7 +436,7 @@ const displayedEntries = computed<DisplayEntry[]>(() => {
             lines: file.lines,
         },
     }))
-    return [...folders, ...files]
+    return sortDisplayEntries([...folders, ...files])
 })
 
 const breadcrumbs = computed(() => {
