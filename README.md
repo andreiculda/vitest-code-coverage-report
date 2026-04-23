@@ -11,6 +11,17 @@ It provides:
 - source drill-down with per-line hit/miss counts
 - dark/light theme and keyboard shortcuts
 
+## Screenshots
+
+<p align="center">
+  <img src="./assets/main-page.png" alt="Main page" width="49%" />
+  <img src="./assets/file-list.png" alt="File list" width="49%" />
+</p>
+
+<p align="center">
+  <img src="./assets/file-preview.png" alt="File preview" width="98%" />
+</p>
+
 ## Install
 
 ```bash
