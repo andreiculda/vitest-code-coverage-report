@@ -1,9 +1,8 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
-import { URL } from 'node:url'
-import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, URL } from 'node:url'
 
 const MIME_TYPES = {
     '.css': 'text/css; charset=utf-8',
@@ -13,7 +12,7 @@ const MIME_TYPES = {
     '.svg': 'image/svg+xml',
 }
 
-function parseArgs(argv) {
+function parseArgs (argv) {
     const options = {
         root: process.cwd(),
         coverageFile: null,
@@ -57,7 +56,7 @@ function parseArgs(argv) {
     return options
 }
 
-function printHelp() {
+function printHelp () {
     console.log(`code-coverage-report
 
 Usage:
@@ -66,7 +65,7 @@ Usage:
 Options:
   -r, --root <path>             Project root that contains coverage and source files
   -c, --coverage-file <path>    Coverage JSON path (defaults to <root>/coverage/coverage-final.json)
-  -p, --port <number>           Port to run server on (default: 5179)
+  -p, --port <number>           First port to try (default: 5179; uses next free if busy)
   -w, --watch                   Run Vitest in watch mode with coverage
       --run-vitest              Run Vitest before starting viewer (default)
       --no-vitest               Start viewer without running Vitest
@@ -77,13 +76,13 @@ Options:
 `)
 }
 
-function sendJson(res, statusCode, payload) {
+function sendJson (res, statusCode, payload) {
     res.statusCode = statusCode
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
     res.end(JSON.stringify(payload))
 }
 
-function toSafeFilePath(base, filePath) {
+function toSafeFilePath (base, filePath) {
     const absolute = path.resolve(base, filePath)
     if (absolute === base || absolute.startsWith(base + path.sep)) {
         return absolute
@@ -91,7 +90,7 @@ function toSafeFilePath(base, filePath) {
     return null
 }
 
-function openBrowser(url) {
+function openBrowser (url) {
     const platform = process.platform
     if (platform === 'win32') {
         spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref()
@@ -104,17 +103,50 @@ function openBrowser(url) {
     spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref()
 }
 
-function resolveVitestCli(root) {
+function resolveVitestCli (root) {
     return path.resolve(root, 'node_modules', 'vitest', 'vitest.mjs')
 }
 
-function stopChild(child) {
+function stopChild (child) {
     if (child && !child.killed) {
         child.kill('SIGTERM')
     }
 }
 
-function createServer({ root, coverageFile, distDir }) {
+/**
+ * Tries to bind `server` to `host` starting at `startPort`. If the port is in use, tries
+ * startPort+1, and so on, until a free port is found or a non-EADDRINUSE error occurs.
+ * @param {import('node:http').Server} server
+ * @param {string} host
+ * @param {number} startPort
+ * @returns {Promise<number>} The port the server is listening on
+ */
+function listenOnAvailablePort (server, host, startPort) {
+    return new Promise((resolve, reject) => {
+        const tryPort = (port) => {
+            if (port > 65535) {
+                reject(new Error(`No free port found starting at ${String(startPort)}`))
+                return
+            }
+            const onError = (err) => {
+                if (err && 'code' in err && err.code === 'EADDRINUSE') {
+                    server.removeListener('error', onError)
+                    tryPort(port + 1)
+                } else {
+                    reject(err)
+                }
+            }
+            server.once('error', onError)
+            server.listen(port, host, () => {
+                server.removeListener('error', onError)
+                resolve(port)
+            })
+        }
+        tryPort(startPort)
+    })
+}
+
+function createServer ({ root, coverageFile, distDir }) {
     return http.createServer((req, res) => {
         const requestUrl = new URL(req.url || '/', 'http://127.0.0.1')
         const pathname = requestUrl.pathname
@@ -178,7 +210,7 @@ function createServer({ root, coverageFile, distDir }) {
     })
 }
 
-export async function runCli(argv = process.argv.slice(2)) {
+export async function runCli (argv = process.argv.slice(2)) {
     const options = parseArgs(argv)
     if (options.help) {
         printHelp()
@@ -234,12 +266,12 @@ export async function runCli(argv = process.argv.slice(2)) {
     }
 
     const server = createServer({ root, coverageFile, distDir })
-    await new Promise((resolve, reject) => {
-        server.once('error', reject)
-        server.listen(options.port, '127.0.0.1', () => resolve())
-    })
+    const port = await listenOnAvailablePort(server, '127.0.0.1', options.port)
+    if (port !== options.port) {
+        console.log(`Port ${String(options.port)} in use, using ${String(port)} instead.`)
+    }
 
-    const url = `http://127.0.0.1:${options.port}`
+    const url = `http://127.0.0.1:${port}`
     console.log(`Coverage viewer running at ${url}`)
     console.log(`Project root: ${root}`)
     console.log(`Coverage file: ${coverageFile}`)

@@ -46,7 +46,7 @@ npx code-coverage-report
 npx code-coverage-report -- App.spec.ts
 ```
 
-The viewer runs at `http://127.0.0.1:5179`. By default, the CLI runs:
+The viewer defaults to `http://127.0.0.1:5179` (if that port is busy, the next free port is used). By default, the CLI runs:
 
 `vitest run --coverage --coverage.reporter=json`
 
@@ -58,7 +58,7 @@ code-coverage-report --root ./my-app --port 5180 --no-open
 
 - `--root, -r <path>`: target project root (default: current directory)
 - `--coverage-file, -c <path>`: explicit coverage JSON path
-- `--port, -p <number>`: server port (default: `5179`)
+- `--port, -p <number>`: first port to try (default: `5179`; uses the next free port if busy)
 - `--watch, -w`: run `vitest run --watch --coverage --coverage.reporter=json`
 - `--run-vitest`: run Vitest before starting the viewer (default)
 - `--no-vitest`: start only the viewer server
