@@ -18,7 +18,7 @@ function parseArgs (argv) {
         coverageFile: null,
         port: 5179,
         open: true,
-        runVitest: true,
+        runVitest: false,
         watch: false,
         vitestArgs: [],
     }
@@ -53,6 +53,14 @@ function parseArgs (argv) {
         }
     }
 
+    // `--no-vitest` wins over `--watch` / `--run-vitest`. `--watch` implies running Vitest.
+    if (argv.includes('--no-vitest')) {
+        options.runVitest = false
+        options.watch = false
+    } else if (options.watch) {
+        options.runVitest = true
+    }
+
     return options
 }
 
@@ -66,9 +74,9 @@ Options:
   -r, --root <path>             Project root that contains coverage and source files
   -c, --coverage-file <path>    Coverage JSON path (defaults to <root>/coverage/coverage-final.json)
   -p, --port <number>           First port to try (default: 5179; uses next free if busy)
-  -w, --watch                   Run Vitest in watch mode with coverage
-      --run-vitest              Run Vitest before starting viewer (default)
-      --no-vitest               Start viewer without running Vitest
+  -w, --watch                   Run Vitest in watch mode with coverage (starts viewer + Vitest)
+      --run-vitest              Run Vitest once with coverage, then start viewer
+      --no-vitest               Do not run Vitest (default)
       --open                    Open browser on start (default)
       --no-open                 Do not open browser on start
       -- <args...>              Forward args to Vitest (files, filters, flags)

@@ -1,5 +1,11 @@
 # vitest-code-coverage-report
 
+## 1.2.0
+
+### Minor Changes
+
+- **Breaking behavior (CLI):** `code-coverage-report` no longer runs Vitest by default. It only starts the viewer and reads existing coverage JSON. Use `--run-vitest` to run `vitest run --coverage` once first, or `--watch` for watch mode. `--no-vitest` remains valid and is now the default.
+
 ## 1.1.1
 
 ### Patch Changes

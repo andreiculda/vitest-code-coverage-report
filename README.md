@@ -34,21 +34,25 @@ export default defineConfig({
 })
 ```
 
-2. Run tests with coverage and start the viewer:
+2. Start the viewer (reads existing `coverage/coverage-final.json`; it does **not** run tests):
 
 ```bash
 npx code-coverage-report
 ```
 
-3. Optional: run only specific test files:
+3. Optional: run tests with coverage, then open the viewer:
 
 ```bash
-npx code-coverage-report -- App.spec.ts
+npx code-coverage-report --run-vitest
 ```
 
-The viewer defaults to `http://127.0.0.1:5179` (if that port is busy, the next free port is used). By default, the CLI runs:
+4. Optional: only some test files:
 
-`vitest run --coverage --coverage.reporter=json`
+```bash
+npx code-coverage-report --run-vitest -- App.spec.ts
+```
+
+The viewer defaults to `http://127.0.0.1:5179` (if that port is busy, the next free port is used).
 
 ## CLI options
 
@@ -59,19 +63,25 @@ code-coverage-report --root ./my-app --port 5180 --no-open
 - `--root, -r <path>`: target project root (default: current directory)
 - `--coverage-file, -c <path>`: explicit coverage JSON path
 - `--port, -p <number>`: first port to try (default: `5179`; uses the next free port if busy)
-- `--watch, -w`: run `vitest run --watch --coverage --coverage.reporter=json`
-- `--run-vitest`: run Vitest before starting the viewer (default)
-- `--no-vitest`: start only the viewer server
+- `--watch, -w`: run `vitest run --watch --coverage --coverage.reporter=json`, then keep the viewer open
+- `--run-vitest`: run `vitest run --coverage --coverage.reporter=json` once, then start the viewer
+- `--no-vitest`: do not run Vitest (this is the default)
 - `--open` / `--no-open`: control browser auto-open
 - `-- <args...>`: pass files/filters/options through to Vitest
 - `--help, -h`: print usage help
 
 ### Command examples
 
-Run tests once with coverage, then open viewer:
+Open the viewer only (use after `vitest --coverage` or your own `test:coverage` script):
 
 ```bash
 npx code-coverage-report
+```
+
+Run tests once with coverage, then open viewer:
+
+```bash
+npx code-coverage-report --run-vitest
 ```
 
 Run viewer + Vitest watch together:
@@ -80,13 +90,13 @@ Run viewer + Vitest watch together:
 npx code-coverage-report --watch
 ```
 
-Filter to one spec while still watching dependency changes:
+Filter to one spec while watching:
 
 ```bash
 npx code-coverage-report --watch -- App.spec.ts
 ```
 
-Run only the viewer server (no Vitest process):
+Explicit “viewer only” (same as default; useful in scripts for clarity):
 
 ```bash
 npx code-coverage-report --no-vitest
@@ -98,6 +108,7 @@ npx code-coverage-report --no-vitest
 {
     "scripts": {
         "coverage:report": "code-coverage-report",
+        "coverage:run-and-report": "code-coverage-report --run-vitest",
         "coverage:watch-report": "code-coverage-report --watch"
     }
 }
@@ -106,7 +117,7 @@ npx code-coverage-report --no-vitest
 Then run:
 
 ```bash
-npm run coverage:report -- App.spec.ts
+npm run coverage:run-and-report -- App.spec.ts
 ```
 
 ## How coverage file discovery works
