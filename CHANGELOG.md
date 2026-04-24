@@ -1,5 +1,12 @@
 # vitest-code-coverage-report
 
+## 1.2.4
+
+### Patch Changes
+
+- Refine source-view branch highlighting to be precise and readable by combining marker-aware token selection with strict fallback rules to avoid false positives.
+- Preserve default syntax highlighting colors while rendering uncovered-branch overlays, and restore hover tooltips on highlighted branch segments.
+
 ## 1.2.3
 
 ### Patch Changes
