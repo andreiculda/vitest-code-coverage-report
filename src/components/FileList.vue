@@ -5,7 +5,7 @@
             class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
         >
             <button
-                v-if="inFolderMode"
+                v-if="inFolderMode && !isAtRootScope"
                 type="button"
                 class="btn py-1 px-2 text-xs"
                 @click="goRoot"
@@ -13,14 +13,14 @@
                 Root folders
             </button>
             <button
-                v-if="inFolderMode"
+                v-if="inFolderMode && !isAtRootScope"
                 type="button"
                 class="btn py-1 px-2 text-xs"
                 @click="goUp"
             >
                 Up
             </button>
-            <template v-if="inFolderMode">
+            <template v-if="inFolderMode && !isAtRootScope">
                 <span class="text-slate-500">in</span>
                 <template
                     v-for="crumb in breadcrumbs"
@@ -201,11 +201,13 @@ const {
     selectedPath,
     query,
     currentFolderPath,
+    rootFolderPath = '',
 } = defineProps<{
     files: FileStats[]
     selectedPath: string | null
     query: string
     currentFolderPath: string
+    rootFolderPath?: string
 }>()
 const emit = defineEmits<{
     selectFile: [file: FileStats]
@@ -219,6 +221,8 @@ const sortKey = ref<SortKey>('path')
 const sortDir = ref<SortDirection>('asc')
 const EMPTY_METRIC: MetricTotals = { total: 0, covered: 0, coveragePercentage: 100 }
 const normalizedCurrentFolderPath = computed(() => currentFolderPath.replace(/^\/+|\/+$/g, ''))
+const normalizedRootFolderPath = computed(() => rootFolderPath.replace(/^\/+|\/+$/g, ''))
+const isAtRootScope = computed(() => normalizedCurrentFolderPath.value === normalizedRootFolderPath.value)
 
 function readPersistedSortState (): { key: SortKey; dir: SortDirection } | null {
     if (typeof window === 'undefined') return null
@@ -441,9 +445,12 @@ const displayedEntries = computed<DisplayEntry[]>(() => {
 
 const breadcrumbs = computed(() => {
     if (!normalizedCurrentFolderPath.value) return [] as Array<{ name: string; path: string }>
-    const parts = normalizedCurrentFolderPath.value.split('/').filter(Boolean)
+    const fullParts = normalizedCurrentFolderPath.value.split('/').filter(Boolean)
+    const rootParts = normalizedRootFolderPath.value.split('/').filter(Boolean)
+    const hasRootPrefix = rootParts.length > 0 && rootParts.every((part, index) => fullParts[index] === part)
+    const parts = hasRootPrefix ? fullParts.slice(rootParts.length) : fullParts
     const crumbs: Array<{ name: string; path: string }> = []
-    let acc = ''
+    let acc = hasRootPrefix ? normalizedRootFolderPath.value : ''
     for (const part of parts) {
         acc = acc ? `${acc}/${part}` : part
         crumbs.push({ name: part, path: acc })
@@ -462,14 +469,21 @@ function openFolder (folderPath: string): void {
 }
 
 function goRoot (): void {
-    emit('navigateFolder', '')
+    emit('navigateFolder', normalizedRootFolderPath.value)
 }
 
 function goUp (): void {
     if (!normalizedCurrentFolderPath.value) return
+    if (isAtRootScope.value) return
     const parts = normalizedCurrentFolderPath.value.split('/')
     parts.pop()
-    emit('navigateFolder', parts.length ? parts.join('/') : '')
+    const nextPath = parts.length ? parts.join('/') : normalizedRootFolderPath.value
+    const root = normalizedRootFolderPath.value
+    if (root && nextPath && !nextPath.startsWith(`${root}/`) && nextPath !== root) {
+        emit('navigateFolder', root)
+        return
+    }
+    emit('navigateFolder', nextPath || root)
 }
 
 function openBreadcrumb (path: string): void {

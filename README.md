@@ -148,6 +148,16 @@ code-coverage-report --coverage-file ./artifacts/coverage/coverage-final.json
 
 ```bash
 npm install
-npm run build
-npm run start
+npm run dev
 ```
+
+Use env vars to point the dev server at another project's coverage/source while keeping HMR enabled:
+
+```bash
+// .env.local
+COVERAGE_ROOT="D:/projects/my-vite-app"
+COVERAGE_FILE="D:/projects/my-vite-app/coverage/coverage-final.json"
+VITE_APP_ROOT_FOLDER="src"
+```
+
+`VITE_APP_ROOT_FOLDER` controls the initial folder opened by the viewer when no `?folder=...` is present in the URL.

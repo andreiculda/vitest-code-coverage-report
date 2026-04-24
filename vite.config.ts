@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -6,8 +6,7 @@ import { fileURLToPath, URL } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 const HERE = fileURLToPath(new URL('.', import.meta.url))
-const PROJECT_ROOT = path.resolve(HERE, '..', '..')
-const COVERAGE_FILE = path.resolve(PROJECT_ROOT, 'coverage', 'coverage-final.json')
+const WORKSPACE_ROOT = path.resolve(HERE)
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
     res.statusCode = status
@@ -15,25 +14,25 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
     res.end(JSON.stringify(body))
 }
 
-function isSafePath(absPath: string): boolean {
+function isSafePath(absPath: string, projectRoot: string): boolean {
     const normalized = path.resolve(absPath)
-    return normalized.startsWith(PROJECT_ROOT + path.sep) || normalized === PROJECT_ROOT
+    return normalized.startsWith(projectRoot + path.sep) || normalized === projectRoot
 }
 
 
-function coverageServerPlugin() {
+function coverageServerPlugin(projectRoot: string, coverageFile: string) {
     return {
         name: 'coverage-viewer-server',
         configureServer(server: { middlewares: { use: (path: string, handler: (req: IncomingMessage, res: ServerResponse) => void) => void } }) {
             server.middlewares.use('/__cov/data', (_req, res) => {
-                if (!fs.existsSync(COVERAGE_FILE)) {
-                    return sendJson(res, 404, { error: `coverage-final.json not found at ${COVERAGE_FILE}` })
+                if (!fs.existsSync(coverageFile)) {
+                    return sendJson(res, 404, { error: `coverage-final.json not found at ${coverageFile}` })
                 }
-                const stat = fs.statSync(COVERAGE_FILE)
+                const stat = fs.statSync(coverageFile)
                 res.setHeader('Content-Type', 'application/json; charset=utf-8')
                 res.setHeader('Content-Length', String(stat.size))
                 res.setHeader('Cache-Control', 'no-cache')
-                fs.createReadStream(COVERAGE_FILE).pipe(res)
+                fs.createReadStream(coverageFile).pipe(res)
             })
 
             server.middlewares.use('/__cov/source', (req, res) => {
@@ -46,10 +45,10 @@ function coverageServerPlugin() {
                     if (path.isAbsolute(relParam)) {
                         absPath = path.resolve(relParam)
                     } else {
-                        absPath = path.resolve(PROJECT_ROOT, relParam)
+                        absPath = path.resolve(projectRoot, relParam)
                     }
 
-                    if (!isSafePath(absPath)) {
+                    if (!isSafePath(absPath, projectRoot)) {
                         return sendJson(res, 403, { error: 'path outside project root' })
                     }
                     if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
@@ -66,11 +65,11 @@ function coverageServerPlugin() {
             })
 
             server.middlewares.use('/__cov/meta', (_req, res) => {
-                const coverageExists = fs.existsSync(COVERAGE_FILE)
-                const coverageMtimeMs = coverageExists ? fs.statSync(COVERAGE_FILE).mtimeMs : null
+                const coverageExists = fs.existsSync(coverageFile)
+                const coverageMtimeMs = coverageExists ? fs.statSync(coverageFile).mtimeMs : null
                 return sendJson(res, 200, {
-                    projectRoot: PROJECT_ROOT,
-                    coverageFile: COVERAGE_FILE,
+                    projectRoot,
+                    coverageFile,
                     coverageExists,
                     coverageMtimeMs,
                 })
@@ -79,20 +78,28 @@ function coverageServerPlugin() {
     }
 }
 
-export default defineConfig({
-    plugins: [vue(), coverageServerPlugin()],
-    resolve: {
-        alias: {
-            '@': path.resolve(HERE, 'src'),
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, HERE, '')
+    const coverageRoot = path.resolve(env.COVERAGE_ROOT || process.env.COVERAGE_ROOT || WORKSPACE_ROOT)
+    const coverageFile = path.resolve(
+        env.COVERAGE_FILE || process.env.COVERAGE_FILE || path.resolve(coverageRoot, 'coverage', 'coverage-final.json'),
+    )
+
+    return {
+        plugins: [vue(), coverageServerPlugin(coverageRoot, coverageFile)],
+        resolve: {
+            alias: {
+                '@': path.resolve(HERE, 'src'),
+            },
         },
-    },
-    server: {
-        port: 5179,
-        strictPort: false,
-        open: false,
-    },
-    build: {
-        target: 'es2022',
-        outDir: 'dist',
-    },
+        server: {
+            port: 5179,
+            strictPort: false,
+            open: false,
+        },
+        build: {
+            target: 'es2022',
+            outDir: 'dist',
+        },
+    }
 })
