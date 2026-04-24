@@ -1,6 +1,6 @@
 {
     "name": "vitest-code-coverage-report",
-    "version": "1.2.4",
+    "version": "1.2.5",
     "private": false,
     "type": "module",
     "description": "Modern self-hosted report for Istanbul/V8 coverage-final.json",
@@ -11,6 +11,7 @@
         "bin",
         "dist",
         "server",
+        "assets",
         "README.md",
         "LICENSE"
     ],

@@ -1,5 +1,11 @@
 # vitest-code-coverage-report
 
+## 1.2.5
+
+### Patch Changes
+
+- Include README screenshot assets in the published npm package so image previews render correctly on npm package page.
+
 ## 1.2.4
 
 ### Patch Changes
