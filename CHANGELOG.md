@@ -1,5 +1,13 @@
 # vitest-code-coverage-report
 
+## 1.2.3
+
+### Patch Changes
+
+- Add a richer insights workflow with a collapsible left insights panel, new file-level analytics cards (coverage risk, quick wins, flaky zone candidates), and hover previews that show per-file coverage donuts.
+- Improve dashboard ergonomics with right-side settings drawer (theme, thresholds, keyboard shortcuts), persistent insights panel visibility, and cleaner top-bar actions.
+- Enhance navigation by making insights entries open the related file coverage view directly while keeping folder context synced.
+
 ## 1.2.0
 
 ### Minor Changes

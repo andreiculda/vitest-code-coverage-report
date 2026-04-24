@@ -1,4 +1,5 @@
 import type {
+    BranchMarker,
     CoverageMap,
     FileStats,
     IstanbulFileCoverage,
@@ -6,6 +7,23 @@ import type {
     TreeNode,
 } from '@/types'
 import { computed, ref, shallowRef } from 'vue'
+
+function branchMarkerLabel (type: string, index: number): string {
+    switch (type) {
+        case 'if':
+            return index === 0 ? 'IF' : 'EL'
+        case 'cond-expr':
+            return index === 0 ? '?' : ':'
+        case 'binary-expr':
+            return index === 0 ? 'L' : 'R'
+        case 'switch':
+            return `C${index}`
+        case 'default-arg':
+            return 'DEF'
+        default:
+            return 'BR'
+    }
+}
 
 const EMPTY_METRIC: MetricTotals = { total: 0, covered: 0, coveragePercentage: 100 }
 
@@ -63,7 +81,7 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
     }
 
     const uncoveredBranchRangesByLine = new Map<number, Array<{ start: number; end: number }>>()
-    const uncoveredBranchMarkersByLine = new Map<number, Array<{ column: number; label: string }>>()
+    const uncoveredBranchMarkersByLine = new Map<number, BranchMarker[]>()
     for (const id of Object.keys(file.b)) {
         const branchHits = file.b[id] ?? []
         const branchMeta = file.branchMap[id]
@@ -72,6 +90,8 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
         const fallbackColumn = Math.max(0, branchMeta.loc?.start.column ?? 0)
         const locations = branchMeta.locations ?? []
         const maxIndex = Math.min(branchHits.length, locations.length)
+        const branchType = branchMeta.type ?? 'unknown'
+        const branchTotalPaths = locations.length
         for (let i = 0; i < maxIndex; i++) {
             if ((branchHits[i] ?? 0) > 0) continue
             const loc = locations[i]
@@ -86,17 +106,25 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
                 endColRaw == null ? startCol + 1 : endColRaw,
             )
 
-            // Keep markers Istanbul-like: only show uncovered IF / ELSE paths.
-            if (branchMeta.type === 'if') {
-                const markerLabel = i === 0 ? 'I' : 'E'
-                const markerLine = startLine
-                const markerColumn = startCol
-                const existingMarkers = uncoveredBranchMarkersByLine.get(markerLine) ?? []
-                const hasSameLabel = existingMarkers.some((marker) => marker.label === markerLabel)
-                if (!hasSameLabel) {
-                    existingMarkers.push({ column: markerColumn, label: markerLabel })
-                    uncoveredBranchMarkersByLine.set(markerLine, existingMarkers)
-                }
+            const markerLabel = branchMarkerLabel(branchType, i)
+            const markerLine = startLine
+            const markerColumn = startCol
+            const existingMarkers = uncoveredBranchMarkersByLine.get(markerLine) ?? []
+            const hasSameMarker = existingMarkers.some(
+                (marker) =>
+                    marker.type === branchType
+                    && marker.index === i
+                    && marker.column === markerColumn,
+            )
+            if (!hasSameMarker) {
+                existingMarkers.push({
+                    column: markerColumn,
+                    label: markerLabel,
+                    type: branchType,
+                    index: i,
+                    total: branchTotalPaths,
+                })
+                uncoveredBranchMarkersByLine.set(markerLine, existingMarkers)
             }
 
             for (let line = startLine; line <= endLine; line++) {
@@ -107,6 +135,10 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
                 uncoveredBranchRangesByLine.set(line, current)
             }
         }
+    }
+
+    for (const markers of uncoveredBranchMarkersByLine.values()) {
+        markers.sort((a, b) => a.column - b.column || a.index - b.index)
     }
 
     const normalizedProjectRoot = projectRoot.replace(/\\/g, '/')

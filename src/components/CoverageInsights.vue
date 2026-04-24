@@ -193,7 +193,6 @@
                         <span class="min-w-0 truncate">{{ index + 1 }}. {{ displayFileName(entry.path) }}</span>
                         <span
                             class="tabular-nums text-slate-500 dark:text-slate-400"
-                            :title="`Impact ${entry.impactScore}, complexity ${entry.complexityScore}`"
                         >{{ entry.quickWinScore.toFixed(2) }}</span>
                     </button>
                 </div>
@@ -218,7 +217,6 @@
                         <span class="min-w-0 truncate">{{ index + 1 }}. {{ displayFileName(entry.path) }}</span>
                         <span
                             class="tabular-nums text-slate-500 dark:text-slate-400"
-                            :title="`Branches ${entry.branchesTotal}, branch coverage ${formatPercent(entry.branchesCoverage)}`"
                         >{{ entry.flakyScore.toFixed(1) }}</span>
                     </button>
                 </div>
@@ -547,9 +545,19 @@ const fileStatsByRelPath = computed(() => {
 
 function showCoveragePreview (
     event: MouseEvent,
-    entry: { relPath: string; impactScore?: number; complexityScore?: number },
+    entry: { relPath?: string; path?: string; impactScore?: number; complexityScore?: number },
 ): void {
-    const file = fileStatsByRelPath.value.get(entry.relPath)
+    let file: FileStats | undefined
+    if (entry.relPath) {
+        file = fileStatsByRelPath.value.get(entry.relPath)
+    }
+    if (!file && entry.path) {
+        const normalizedPath = entry.path.replace(/^\/+/, '')
+        file = insightFiles.find((candidate) =>
+            candidate.relPath.endsWith(normalizedPath)
+            || candidate.relPath.endsWith(`/${normalizedPath}`),
+        )
+    }
     if (!file) return
     const fileName = displayFileName(file.relPath)
     const parts = file.relPath.split('/')
