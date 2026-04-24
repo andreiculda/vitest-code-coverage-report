@@ -1,12 +1,19 @@
 <template>
     <div
-        class="panel p-5"
+        class="panel p-4"
         :class="statementsCardTintClass"
     >
         <div class="flex flex-col md:flex-row md:items-center md:gap-8 gap-4">
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 min-w-0">
                 <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Project
+                    {{ scopeLabel }}
+                </div>
+                <div
+                    v-if="folderPath"
+                    class="text-sm font-mono text-slate-700 dark:text-slate-200 truncate max-w-[40ch]"
+                    :title="folderPath"
+                >
+                    {{ folderPath }}
                 </div>
                 <div class="text-2xl font-semibold text-slate-900 dark:text-slate-50">
                     {{ fileCount }} files
@@ -54,12 +61,16 @@ import DonutChart from './DonutChart.vue'
 const {
     totals,
     fileCount,
+    folderPath,
 } = defineProps<{
     totals: TreeNode['aggregated']
     fileCount: number
+    folderPath?: string
 }>()
 
 const { classify } = useThresholds()
+
+const scopeLabel = computed(() => (folderPath ? 'Folder' : 'Project'))
 
 const statementsCardTintClass = computed(() => {
     const kind = classify(totals.statements.coveragePercentage)

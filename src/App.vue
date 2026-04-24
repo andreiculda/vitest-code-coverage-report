@@ -46,37 +46,20 @@
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <div class="relative">
-                        <button
-                            type="button"
-                            class="btn inline-flex items-center gap-1.5"
-                            title="Coverage thresholds"
-                            @click="toggleThresholdsDropdown"
-                        >
-                            <Icon
-                                icon="lucide:settings-2"
-                                class="h-4 w-4"
-                            />
-                            <span>thresholds</span>
-                        </button>
-                        <div
-                            v-if="showThresholds"
-                            class="absolute right-0 mt-2 w-max panel p-3 z-30"
-                        >
-                            <ThresholdsPanel />
-                        </div>
-                    </div>
                     <button
                         type="button"
-                        class="btn"
-                        :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'"
-                        @click="toggleTheme"
+                        class="btn inline-flex items-center gap-1.5"
+                        :title="showInsights ? 'Hide insights panel' : 'Show insights panel'"
+                        @click="showInsights = !showInsights"
                     >
                         <Icon
-                            :icon="theme === 'dark' ? 'lucide:sun' : 'lucide:moon'"
+                            icon="lucide:panel-left"
                             class="h-4 w-4"
                         />
+                        <span>insights</span>
                     </button>
+                </div>
+                <div class="flex items-center gap-2 ml-auto">
                     <button
                         type="button"
                         class="btn"
@@ -90,12 +73,12 @@
                     </button>
                     <button
                         type="button"
-                        class="btn"
-                        title="Keyboard shortcuts (?)"
-                        @click="showHelp = true"
+                        class="btn inline-flex items-center gap-1.5"
+                        :title="showSettingsPanel ? 'Hide settings' : 'Show settings'"
+                        @click="showSettingsPanel = !showSettingsPanel"
                     >
                         <Icon
-                            icon="lucide:circle-help"
+                            icon="lucide:settings-2"
                             class="h-4 w-4"
                         />
                     </button>
@@ -134,32 +117,61 @@
                 v-else-if="tree && files.length"
                 class="h-full min-h-0 p-5 flex flex-col gap-5"
             >
-                <SummaryBar
-                    :totals="totals"
-                    :file-count="files.length"
-                />
-
-                <div class="grid grid-cols-1 gap-5 flex-1 min-h-0">
-                    <section class="panel p-3 flex flex-col min-h-0 overflow-hidden">
-                        <div class="flex items-center justify-between px-1 pb-2 border-b border-slate-200 dark:border-slate-800 mb-2">
-                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                {{ listPanelTitle }}
-                            </span>
-                            <span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
-                                {{ filteredFiles.length }}/{{ files.length }}
-                            </span>
-                        </div>
-                        <div class="flex-1 min-h-0 overflow-auto">
-                            <FileList
-                                :files="files"
-                                :query="query"
-                                :selected-path="selected?.relPath ?? null"
-                                :current-folder-path="currentFolderPath"
-                                @select-file="selectFile"
-                                @navigate-folder="navigateFolder"
+                <div
+                    class="flex flex-1 min-h-0 overflow-hidden"
+                    :class="showInsights ? 'gap-4' : 'gap-0'"
+                >
+                    <aside
+                        class="transition-[width,opacity,transform] duration-300 ease-out overflow-hidden"
+                        :class="showInsights ? 'w-full max-w-[350px] opacity-100 translate-x-0' : 'w-0 max-w-0 opacity-0 -translate-x-2'"
+                        aria-label="Insights panel"
+                    >
+                        <div
+                            v-if="showInsights"
+                            class="h-full min-h-0 overflow-auto pr-1"
+                        >
+                            <CoverageInsights
+                                :totals="currentTotals"
+                                :project-root="projectRoot"
+                                :insight-files="files"
+                                :top-pages-by-risk="topPagesByRisk"
+                                :top-pages-by-untested-impact="topPagesByUntestedImpact"
+                                :high-complexity-low-coverage="highComplexityLowCoverage"
+                                :quick-wins="quickWins"
+                                :flaky-zone-candidates="flakyZoneCandidates"
+                                @navigate-pages-scope="navigateFolder"
+                                @open-coverage-file="openCoverageFileFromInsights"
                             />
                         </div>
-                    </section>
+                    </aside>
+                    <div class="flex-1 min-w-0 min-h-0 flex flex-col gap-4">
+                        <SummaryBar
+                            :totals="currentTotals"
+                            :file-count="currentFileCount"
+                            :folder-path="currentFolderPath"
+                        />
+                        <section class="panel p-3 flex flex-col flex-1 min-h-0 overflow-hidden min-h-[56vh]">
+                            <div class="flex items-center justify-between px-1 pb-2 border-b border-slate-200 dark:border-slate-800 mb-2">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                    Coverage
+                                </span>
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                                    {{ filteredCurrentFileCount }}/{{ files.length }}
+                                </span>
+                            </div>
+                            <div class="flex-1 min-h-0 overflow-auto">
+                                <FileList
+                                    :files="files"
+                                    :query="query"
+                                    :selected-path="selected?.relPath ?? null"
+                                    :current-folder-path="currentFolderPath"
+                                    :root-folder-path="defaultAppRootFolder"
+                                    @select-file="selectFile"
+                                    @navigate-folder="navigateFolder"
+                                />
+                            </div>
+                        </section>
+                        </div>
                 </div>
             </div>
 
@@ -180,51 +192,104 @@
             leave-to-class="opacity-0"
         >
             <div
-                v-if="showHelp"
-                class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
-                @click.self="showHelp = false"
+                v-if="showSettingsPanel"
+                class="fixed inset-0 z-40"
+                @click="showSettingsPanel = false"
+            />
+        </Transition>
+
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="translate-x-full opacity-0"
+            enter-to-class="translate-x-0 opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="translate-x-0 opacity-100"
+            leave-to-class="translate-x-full opacity-0"
+        >
+            <aside
+                v-if="showSettingsPanel"
+                class="fixed inset-y-0 right-0 z-50 w-full max-w-[420px] panel rounded-none border-l border-slate-200 dark:border-slate-700 overflow-y-auto"
+                aria-label="Settings panel"
             >
-                <div class="panel max-w-md w-full p-5">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="font-semibold text-slate-900 dark:text-slate-50">
-                            Keyboard shortcuts
+                <div class="p-5 flex flex-col gap-5">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                            Settings
                         </h2>
                         <button
                             type="button"
-                            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                            @click="showHelp = false"
+                            class="btn"
+                            @click="showSettingsPanel = false"
                         >
-                            ✕
+                            Close
                         </button>
                     </div>
-                    <dl class="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 text-sm">
-                        <dt><span class="kbd">/</span></dt>
-                        <dd class="text-slate-700 dark:text-slate-300">
-                            Focus the search box
-                        </dd>
-                        <dt><span class="kbd">Esc</span></dt>
-                        <dd class="text-slate-700 dark:text-slate-300">
-                            Blur search · clear filter
-                        </dd>
-                        <dt><span class="kbd">j</span></dt>
-                        <dd class="text-slate-700 dark:text-slate-300">
-                            Next file
-                        </dd>
-                        <dt><span class="kbd">k</span></dt>
-                        <dd class="text-slate-700 dark:text-slate-300">
-                            Previous file
-                        </dd>
-                        <dt><span class="kbd">t</span></dt>
-                        <dd class="text-slate-700 dark:text-slate-300">
-                            Toggle light/dark theme
-                        </dd>
-                        <dt><span class="kbd">?</span></dt>
-                        <dd class="text-slate-700 dark:text-slate-300">
-                            Toggle this help
-                        </dd>
-                    </dl>
+
+                    <section class="space-y-2">
+                        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Theme
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-slate-700 dark:text-slate-300">
+                                Current: {{ theme }}
+                            </span>
+                            <button
+                                type="button"
+                                class="btn inline-flex items-center gap-1.5"
+                                :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'"
+                                @click="toggleTheme"
+                            >
+                                <Icon
+                                    :icon="theme === 'dark' ? 'lucide:sun' : 'lucide:moon'"
+                                    class="h-4 w-4"
+                                />
+                                <span>Toggle</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="space-y-2">
+                        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Thresholds
+                        </div>
+                        <div class="panel p-3">
+                            <ThresholdsPanel />
+                        </div>
+                    </section>
+
+                    <section class="space-y-2">
+                        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Keyboard shortcuts
+                        </div>
+                        <dl class="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 text-sm">
+                            <dt><span class="kbd">/</span></dt>
+                            <dd class="text-slate-700 dark:text-slate-300">
+                                Focus the search box
+                            </dd>
+                            <dt><span class="kbd">Esc</span></dt>
+                            <dd class="text-slate-700 dark:text-slate-300">
+                                Blur search · clear filter
+                            </dd>
+                            <dt><span class="kbd">j</span></dt>
+                            <dd class="text-slate-700 dark:text-slate-300">
+                                Next file
+                            </dd>
+                            <dt><span class="kbd">k</span></dt>
+                            <dd class="text-slate-700 dark:text-slate-300">
+                                Previous file
+                            </dd>
+                            <dt><span class="kbd">t</span></dt>
+                            <dd class="text-slate-700 dark:text-slate-300">
+                                Toggle light/dark theme
+                            </dd>
+                            <dt><span class="kbd">?</span></dt>
+                            <dd class="text-slate-700 dark:text-slate-300">
+                                Open settings panel
+                            </dd>
+                        </dl>
+                    </section>
                 </div>
-            </div>
+            </aside>
         </Transition>
 
         <Transition
@@ -330,10 +395,11 @@
 import { useCoverage } from '@/composables/useCoverage'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { useTheme } from '@/composables/useTheme'
-import type { FileStats } from '@/types'
+import type { FileStats, TreeNode } from '@/types'
 import { Icon } from '@iconify/vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import CoverageBar from './components/CoverageBar.vue'
+import CoverageInsights from './components/CoverageInsights.vue'
 import FileList from './components/FileList.vue'
 import SourceViewer from './components/SourceViewer.vue'
 import SummaryBar from './components/SummaryBar.vue'
@@ -346,11 +412,12 @@ const query = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
 const selected = ref<FileStats | null>(null)
 const isSourceOpen = ref(false)
-const showHelp = ref(false)
-const showThresholds = ref(false)
+const showSettingsPanel = ref(false)
+const showInsights = ref(false)
 const pendingFilePath = ref<string | null>(null)
 const currentFolderPath = ref('')
-const listPanelTitle = computed(() => (currentFolderPath.value ? 'Files list' : 'Folder list'))
+const defaultAppRootFolder = normalizePath(import.meta.env.VITE_APP_ROOT_FOLDER ?? 'src')
+const INSIGHTS_PANEL_STORAGE_KEY = 'coverage-report:show-insights'
 
 interface UrlState {
     folder: string
@@ -375,7 +442,7 @@ function encodeQueryPathValue (value: string): string {
 
 function syncUrlState (replace = true): void {
     const parts: string[] = []
-    if (currentFolderPath.value) {
+    if (currentFolderPath.value && currentFolderPath.value !== defaultAppRootFolder) {
         parts.push(`folder=${encodeQueryPathValue(currentFolderPath.value)}`)
     }
     if (isSourceOpen.value && selected.value?.relPath) {
@@ -389,7 +456,7 @@ function syncUrlState (replace = true): void {
 
 function applyUrlState (): void {
     const state = parseUrlState()
-    currentFolderPath.value = state.folder || ''
+    currentFolderPath.value = state.folder || defaultAppRootFolder
     pendingFilePath.value = state.file || null
 }
 
@@ -407,9 +474,15 @@ function onPopState (): void {
 }
 
 onMounted(async () => {
+    if (typeof window !== 'undefined') {
+        showInsights.value = window.localStorage.getItem(INSIGHTS_PANEL_STORAGE_KEY) === 'true'
+    }
     applyUrlState()
     window.addEventListener('popstate', onPopState)
     await load()
+    if (currentFolderPath.value && !findNodeByPath(tree.value, currentFolderPath.value)) {
+        currentFolderPath.value = ''
+    }
     startAutoRefresh()
     if (pendingFilePath.value) {
         const file = files.value.find((entry) => entry.relPath === pendingFilePath.value)
@@ -438,18 +511,219 @@ function closeSourceModal (): void {
 }
 
 function navigateFolder (path: string): void {
-    currentFolderPath.value = normalizePath(path)
+    const normalized = normalizePath(path)
+    currentFolderPath.value = normalized || defaultAppRootFolder
     syncUrlState(false)
 }
 
-function toggleThresholdsDropdown (): void {
-    showThresholds.value = !showThresholds.value
+function openCoverageFileFromInsights (payload: { folderPath: string; filePath: string }): void {
+    navigateFolder(payload.folderPath)
+    const file = files.value.find((entry) => entry.relPath === payload.filePath)
+    if (!file) return
+    selected.value = file
+    isSourceOpen.value = true
+    syncUrlState(false)
 }
 
 const filteredFiles = computed(() => {
     const q = query.value.trim().toLowerCase()
     if (!q) return files.value
     return files.value.filter((f) => f.relPath.toLowerCase().includes(q))
+})
+
+function findNodeByPath (root: TreeNode | null, path: string): TreeNode | null {
+    if (!root) return null
+    if (!path) return root
+    const parts = path.split('/').filter(Boolean)
+    let cursor: TreeNode | null = root
+    for (const part of parts) {
+        if (!cursor) return null
+        const next: TreeNode | undefined = cursor.children.find((child) => child.name === part && !child.isFile)
+        if (!next) return null
+        cursor = next
+    }
+    return cursor
+}
+
+function countFilesInNode (node: TreeNode | null): number {
+    if (!node) return 0
+    if (node.isFile) return 1
+    let count = 0
+    for (const child of node.children) count += countFilesInNode(child)
+    return count
+}
+
+const currentFolderNode = computed(() => findNodeByPath(tree.value, currentFolderPath.value))
+
+const currentTotals = computed(() => currentFolderNode.value?.aggregated ?? totals.value)
+
+const currentFileCount = computed(() => {
+    const node = currentFolderNode.value
+    if (!node) return files.value.length
+    return countFilesInNode(node)
+})
+
+const filteredCurrentFileCount = computed(() => {
+    const q = query.value.trim().toLowerCase()
+    if (!q) return currentFileCount.value
+
+    const folderPrefix = currentFolderPath.value ? `${currentFolderPath.value}/` : ''
+    return files.value.filter((file) => {
+        if (folderPrefix && !file.relPath.startsWith(folderPrefix)) return false
+        return file.relPath.toLowerCase().includes(q)
+    }).length
+})
+
+interface PageCoverageReportEntry {
+    path: string
+    relPath: string
+    targetFolderPath: string
+    statements: number
+    statementsCoverage: number
+    branchesTotal: number
+    branchesCoverage: number
+    functionsTotal: number
+    linesCoverage: number
+    functionsCoverage: number
+    uncoveredStatements: number
+    uncoveredBranches: number
+}
+
+const pageCoverageReportEntries = computed(() => {
+    const pagesRootPath = normalizePath(`${defaultAppRootFolder}/pages`)
+    const prefix = `${pagesRootPath}/`
+    return files.value
+        .filter((file) => file.relPath.startsWith(prefix))
+        .map((file) => {
+            const filePath = file.relPath
+            const folderPath = normalizePath(filePath.split('/').slice(0, -1).join('/'))
+            const displayPath = filePath.split('/pages/')[1] ?? filePath
+            return {
+                path: displayPath,
+                relPath: filePath,
+                targetFolderPath: folderPath || pagesRootPath,
+                statements: file.statements.total,
+                statementsCoverage: file.statements.coveragePercentage,
+                branchesTotal: file.branches.total,
+                branchesCoverage: file.branches.coveragePercentage,
+                functionsTotal: file.functions.total,
+                linesCoverage: file.lines.coveragePercentage,
+                functionsCoverage: file.functions.coveragePercentage,
+                uncoveredStatements: file.statements.total - file.statements.covered,
+                uncoveredBranches: file.branches.total - file.branches.covered,
+            }
+        })
+})
+
+const topPagesByStatements = computed(() => {
+    return [...pageCoverageReportEntries.value]
+        .sort((a, b) => {
+            if (b.statements !== a.statements) return b.statements - a.statements
+            return a.path.localeCompare(b.path)
+        })
+        .slice(0, 5)
+})
+
+const topPagesByRisk = computed(() => {
+    return [...pageCoverageReportEntries.value]
+        .sort((a, b) => {
+            const aRisk = 100 - (a.branchesCoverage * 0.5 + a.linesCoverage * 0.3 + a.functionsCoverage * 0.2)
+            const bRisk = 100 - (b.branchesCoverage * 0.5 + b.linesCoverage * 0.3 + b.functionsCoverage * 0.2)
+            if (bRisk !== aRisk) return bRisk - aRisk
+            return a.path.localeCompare(b.path)
+        })
+        .slice(0, 5)
+        .map((entry) => ({
+            path: entry.path,
+            relPath: entry.relPath,
+            targetFolderPath: entry.targetFolderPath,
+            riskScore: 100 - (entry.branchesCoverage * 0.5 + entry.linesCoverage * 0.3 + entry.functionsCoverage * 0.2),
+            branchesCoverage: entry.branchesCoverage,
+            linesCoverage: entry.linesCoverage,
+        }))
+})
+
+const topPagesByUntestedImpact = computed(() => {
+    return [...pageCoverageReportEntries.value]
+        .sort((a, b) => {
+            const aImpact = a.uncoveredStatements + a.uncoveredBranches
+            const bImpact = b.uncoveredStatements + b.uncoveredBranches
+            if (bImpact !== aImpact) return bImpact - aImpact
+            return a.path.localeCompare(b.path)
+        })
+        .slice(0, 5)
+        .map((entry) => ({
+            path: entry.path,
+            relPath: entry.relPath,
+            targetFolderPath: entry.targetFolderPath,
+            uncoveredStatements: entry.uncoveredStatements,
+            uncoveredBranches: entry.uncoveredBranches,
+            impactScore: entry.uncoveredStatements + entry.uncoveredBranches,
+        }))
+})
+
+const highComplexityLowCoverage = computed(() => {
+    return [...pageCoverageReportEntries.value]
+        .map((entry) => {
+            const complexityScore = entry.branchesTotal + entry.functionsTotal
+            const lowCoverageFactor = 1 - (entry.statementsCoverage / 100)
+            return {
+                path: entry.path,
+                relPath: entry.relPath,
+                targetFolderPath: entry.targetFolderPath,
+                complexityScore,
+                statementsCoverage: entry.statementsCoverage,
+                severityScore: complexityScore * lowCoverageFactor,
+            }
+        })
+        .sort((a, b) => {
+            if (b.severityScore !== a.severityScore) return b.severityScore - a.severityScore
+            return a.path.localeCompare(b.path)
+        })
+        .slice(0, 5)
+})
+
+const quickWins = computed(() => {
+    return [...pageCoverageReportEntries.value]
+        .map((entry) => {
+            const impactScore = entry.uncoveredStatements + entry.uncoveredBranches
+            const complexityScore = entry.branchesTotal + entry.functionsTotal
+            return {
+                path: entry.path,
+                relPath: entry.relPath,
+                targetFolderPath: entry.targetFolderPath,
+                impactScore,
+                complexityScore,
+                quickWinScore: impactScore / (complexityScore + 1),
+            }
+        })
+        .filter((entry) => entry.impactScore > 0)
+        .sort((a, b) => {
+            if (b.quickWinScore !== a.quickWinScore) return b.quickWinScore - a.quickWinScore
+            return a.path.localeCompare(b.path)
+        })
+        .slice(0, 5)
+})
+
+const flakyZoneCandidates = computed(() => {
+    return [...pageCoverageReportEntries.value]
+        .map((entry) => {
+            const branchGap = 1 - (entry.branchesCoverage / 100)
+            return {
+                path: entry.path,
+                relPath: entry.relPath,
+                targetFolderPath: entry.targetFolderPath,
+                branchesTotal: entry.branchesTotal,
+                branchesCoverage: entry.branchesCoverage,
+                flakyScore: entry.branchesTotal * branchGap,
+            }
+        })
+        .filter((entry) => entry.branchesTotal > 0)
+        .sort((a, b) => {
+            if (b.flakyScore !== a.flakyScore) return b.flakyScore - a.flakyScore
+            return a.path.localeCompare(b.path)
+        })
+        .slice(0, 5)
 })
 
 const selectedFileName = computed(() => {
@@ -480,6 +754,11 @@ watch(currentFolderPath, () => {
     syncUrlState(false)
 })
 
+watch(showInsights, (isOpen) => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(INSIGHTS_PANEL_STORAGE_KEY, isOpen ? 'true' : 'false')
+})
+
 function navigate (direction: 1 | -1): void {
     const list = filteredFiles.value
     if (!list.length) return
@@ -499,12 +778,8 @@ useKeyboard({
             closeSourceModal()
             return
         }
-        if (showHelp.value) {
-            showHelp.value = false
-            return
-        }
-        if (showThresholds.value) {
-            showThresholds.value = false
+        if (showSettingsPanel.value) {
+            showSettingsPanel.value = false
             return
         }
         if (document.activeElement === searchInput.value) {
@@ -517,7 +792,7 @@ useKeyboard({
     onPrevFile: () => navigate(-1),
     onToggleTheme: toggleTheme,
     onOpenHelp: () => {
-        showHelp.value = !showHelp.value
+        showSettingsPanel.value = !showSettingsPanel.value
     },
 })
 </script>
