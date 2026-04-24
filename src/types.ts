@@ -51,7 +51,7 @@ export interface FileStats {
     lines: MetricTotals
     lineHits: Map<number, number>
     uncoveredBranchRangesByLine: Map<number, Array<{ start: number; end: number }>>
-    uncoveredBranchMarkersByLine: Map<number, Array<{ column: number; label: string }>>
+    uncoveredBranchMarkersByLine: Map<number, BranchMarker[]>
 }
 
 export interface TreeNode {
@@ -102,4 +102,7 @@ export interface DisplayEntry {
 export interface BranchMarker {
     column: number
     label: string
+    type: string
+    index: number
+    total: number
 }
