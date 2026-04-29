@@ -1,5 +1,13 @@
 # vitest-code-coverage-report
 
+## 1.2.6
+
+### Patch Changes
+
+- Improve source-viewer Istanbul parity by refining inline coverage overlays for Vue template branches, IF/ELSE path markers, and branch-token range anchoring.
+- Add explicit "Function not covered" rendering with tighter function range extraction and better distinction from statement-level row highlighting.
+- Fix multiple edge cases in highlighted span mapping (quoted literals, binding expressions with nested quotes, and multi-candidate function expressions) for more consistent cross-file behavior.
+
 ## 1.2.3
 
 ### Patch Changes
