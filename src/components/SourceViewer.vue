@@ -63,14 +63,23 @@
                             <td class="px-3 py-0 whitespace-pre text-slate-200">
                                 <div class="relative">
                                     <span
+                                        v-for="(marker, markerIdx) in lineMarkers.get(idx + 1) ?? []"
+                                        :key="`mk-inline-${idx + 1}-${markerIdx}`"
+                                        class="coverage-inline-marker"
+                                        :style="{ left: `${markerLeftCh(marker)}ch` }"
+                                        :title="markerTooltip(marker)"
+                                    >
+                                        {{ marker.label }}
+                                    </span>
+                                    <span
                                         v-for="(segment, segmentIdx) in lineHighlightRanges(idx + 1, idx)"
                                         :key="`seg-${idx + 1}-${segmentIdx}`"
-                                        class="coverage-branch-overlay"
+                                        :class="overlayClass(segment.kind)"
                                         :style="{
                                             left: `${segment.start}ch`,
                                             width: `${Math.max(1, segment.end - segment.start)}ch`,
                                         }"
-                                        title="Branch not covered"
+                                        :title="segment.tooltip"
                                     />
                                     <CleanHtml
                                         :html="highlightedLines[idx] || '&nbsp;'"
@@ -88,7 +97,7 @@
 </template>
 <script setup lang="ts">
 import { useSource } from '@/composables/useSource'
-import type { FileStats } from '@/types'
+import type { BranchMarker, FileStats } from '@/types'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js/lib/common'
 import { computed, ref, watch } from 'vue'
@@ -141,6 +150,21 @@ const highlightedLines = computed(() => {
     }
 })
 
+const lineMarkers = computed(() => {
+    const markers = new Map<number, BranchMarker[]>()
+    if (!file) return markers
+    for (let idx = 0; idx < sourceLines.value.length; idx++) {
+        const lineNo = idx + 1
+        const explicit = file.uncoveredBranchMarkersByLine.get(lineNo) ?? []
+        // Match Istanbul-like marker behavior: only show IF/ELSE path markers.
+        const next = explicit
+            .filter((marker) => marker.label === 'I' || marker.label === 'E')
+            .sort((a, b) => a.column - b.column)
+        markers.set(lineNo, next)
+    }
+    return markers
+})
+
 watch(
     () => file?.relPath ?? null,
     async (relPath) => {
@@ -165,9 +189,9 @@ watch(
 function hitClass (lineNo: number): string {
     if (!file) return ''
     const hits = file.lineHits.get(lineNo)
-    const hasUncoveredBranch = (file.uncoveredBranchMarkersByLine.get(lineNo) ?? []).length > 0
+    const hasUncoveredBranchRange = (file.uncoveredBranchRangesByLine.get(lineNo) ?? []).length > 0
     if (hits === 0) return 'bg-rose-500/15 border-l-2 border-rose-500'
-    if (hasUncoveredBranch) return 'bg-amber-400/10 border-l-2 border-amber-400'
+    if (hasUncoveredBranchRange) return 'bg-amber-400/10 border-l-2 border-amber-400'
     if (hits === undefined) return ''
     return 'bg-emerald-500/10 border-l-2 border-emerald-500'
 }
@@ -198,13 +222,17 @@ function escapeHtml (value: string): string {
         .replace(/'/g, '&#039;')
 }
 
-function lineHighlightRanges (lineNo: number, idx: number): Array<{ start: number; end: number }> {
+interface LineOverlaySegment {
+    start: number
+    end: number
+    kind: 'branch' | 'if' | 'else' | 'function'
+    tooltip: string
+}
+
+function lineHighlightRanges (lineNo: number, idx: number): LineOverlaySegment[] {
     const line = sourceLines.value[idx] ?? ''
     if (!line) return []
-    const markers = file?.uncoveredBranchMarkersByLine.get(lineNo) ?? []
-    const rangesFromMarkers = markerRangesForLine(lineNo, markers)
-    const rangesFromCoverage = rangesFromMarkers.length ? [] : coverageRangesForLine(lineNo, line)
-    const ranges = rangesFromCoverage.length ? rangesFromCoverage : rangesFromMarkers
+    const ranges = coverageRangesForLine(lineNo, line)
     if (!ranges.length) return []
 
     const lineLength = line.length
@@ -213,14 +241,19 @@ function lineHighlightRanges (lineNo: number, idx: number): Array<{ start: numbe
             const start = Math.max(0, Math.min(lineLength, range.start))
             const endRaw = range.end === Number.MAX_SAFE_INTEGER ? lineLength : range.end
             const end = Math.max(start + 1, Math.min(lineLength, endRaw))
-            return { start, end }
+            return {
+                start,
+                end,
+                kind: range.kind,
+                tooltip: range.tooltip,
+            }
         })
         .sort((a, b) => a.start - b.start || a.end - b.end)
 
-    const merged: Array<{ start: number; end: number }> = []
+    const merged: LineOverlaySegment[] = []
     for (const range of normalizedRanges) {
         const last = merged[merged.length - 1]
-        if (!last || range.start > last.end) {
+        if (!last || range.start > last.end || range.kind !== last.kind) {
             merged.push({ ...range })
             continue
         }
@@ -229,41 +262,232 @@ function lineHighlightRanges (lineNo: number, idx: number): Array<{ start: numbe
     return merged
 }
 
-function coverageRangesForLine (lineNo: number, line: string): Array<{ start: number; end: number }> {
-    if (isNonBranchDirectiveLine(line)) return []
-    const rawRanges = file?.uncoveredBranchRangesByLine.get(lineNo) ?? []
-    if (!rawRanges.length) return []
+function coverageRangesForLine (lineNo: number, line: string): LineOverlaySegment[] {
+    const rawBranchRanges = file?.uncoveredBranchRangesByLine.get(lineNo) ?? []
+    const rawFunctionRanges = file?.uncoveredFunctionRangesByLine.get(lineNo) ?? []
+    if (!rawBranchRanges.length && !rawFunctionRanges.length) return []
+
+    const markerLabels = (file?.uncoveredBranchMarkersByLine.get(lineNo) ?? []).map((marker) => marker.label)
+    const hasIfElsePathMarker = markerLabels.includes('I') || markerLabels.includes('E')
+    if (hasIfElsePathMarker && jsIfConditionRange(line)) {
+        // Istanbul-like behavior: keep IF/ELSE badge on condition line,
+        // but avoid drawing generic branch overlay on the same condition.
+        return []
+    }
+
     const lineLength = line.length
     const maxSpan = Math.max(3, Math.floor(lineLength * 0.25))
 
-    return rawRanges
+    const branchRanges = rawBranchRanges
         .map((range) => {
             const start = Math.max(0, Math.min(lineLength, range.start))
             const endRaw = range.end === Number.MAX_SAFE_INTEGER ? lineLength : range.end
             const end = Math.max(start + 1, Math.min(lineLength, endRaw))
-            return { start, end }
+            return {
+                start,
+                end,
+                kind: 'branch' as const,
+                tooltip: 'Branch not covered',
+            }
         })
         .map((range) => {
+            const vueTailRange = vueBranchTailRange(line, range.start, range.end)
+            if (vueTailRange) {
+                return {
+                    ...vueTailRange,
+                    kind: range.kind,
+                    tooltip: range.tooltip,
+                }
+            }
+            const bindingFocused = clampToVueBindingExpression(line, range.start, range.end)
+            if (bindingFocused) {
+                return {
+                    ...bindingFocused,
+                    kind: range.kind,
+                    tooltip: range.tooltip,
+                }
+            }
+            const quotedLiteral = quotedLiteralRangeAround(line, range.start, range.end)
+            if (quotedLiteral) {
+                return {
+                    ...quotedLiteral,
+                    kind: range.kind,
+                    tooltip: range.tooltip,
+                }
+            }
             const span = range.end - range.start
             if (span <= maxSpan) return range
             const focused = focusRangeAroundBranchToken(line, range.start, range.end)
-            return focused ?? range
+            if (!focused) {
+                const tailFocused = focusRangeNearEnd(line, range.start, range.end)
+                if (!tailFocused) return range
+                return {
+                    ...tailFocused,
+                    kind: range.kind,
+                    tooltip: range.tooltip,
+                }
+            }
+            return {
+                ...focused,
+                kind: range.kind,
+                tooltip: range.tooltip,
+            }
         })
-        .filter((range) => {
-            const span = range.end - range.start
-            if (span <= maxSpan) return true
-            const text = line.slice(range.start, range.end)
-            return /(\?|&&|\|\||\bif\b|\belse\b)/.test(text)
+
+    const functionRanges = rawFunctionRanges
+        .map((range) => {
+            const start = Math.max(0, Math.min(lineLength, range.start))
+            const endRaw = range.end === Number.MAX_SAFE_INTEGER ? lineLength : range.end
+            const end = Math.max(start + 1, Math.min(lineLength, endRaw))
+            return {
+                start,
+                end,
+                kind: 'function' as const,
+                tooltip: 'Function not covered',
+            }
         })
+        .map((range) => {
+            const functionFocused = focusFunctionExpressionRange(line, range.start, range.end)
+            if (functionFocused) {
+                return {
+                    ...functionFocused,
+                    kind: range.kind,
+                    tooltip: range.tooltip,
+                }
+            }
+            const bindingFocused = clampToVueBindingExpression(line, range.start, range.end)
+            if (bindingFocused) {
+                return {
+                    ...bindingFocused,
+                    kind: range.kind,
+                    tooltip: range.tooltip,
+                }
+            }
+            return range
+        })
+
+    return [...branchRanges, ...functionRanges]
 }
 
-function isNonBranchDirectiveLine (line: string): boolean {
-    const trimmed = line.trim()
-    if (!trimmed.startsWith('v-')) return false
-    return !/^v-(if|else-if|else)\b/.test(trimmed)
+function quotedLiteralRangeAround (line: string, start: number, end: number): { start: number; end: number } | null {
+    const leftBound = Math.max(0, Math.min(line.length - 1, start))
+    const rightBound = Math.max(0, Math.min(line.length - 1, Math.max(start, end - 1)))
+    const probe = [leftBound, rightBound]
+    for (const index of probe) {
+        const range = quotedLiteralAt(line, index)
+        if (range) return range
+    }
+    return null
 }
 
-function markerRangesForLine (lineNo: number, markers: Array<{ column: number }>): Array<{ start: number; end: number }> {
+function quotedLiteralAt (line: string, index: number): { start: number; end: number } | null {
+    const isQuote = (ch: string): boolean => ch === '\'' || ch === '"'
+    for (let i = index; i >= 0; i--) {
+        const ch = line[i]
+        if (!isQuote(ch) || (i > 0 && line[i - 1] === '\\')) continue
+        const quote = ch
+        for (let j = i + 1; j < line.length; j++) {
+            if (line[j] === quote && line[j - 1] !== '\\') {
+                if (index >= i && index < j) return { start: i, end: j + 1 }
+                return null
+            }
+        }
+        return null
+    }
+    return null
+}
+
+function focusFunctionExpressionRange (line: string, start: number, end: number): { start: number; end: number } | null {
+    const exprRange = vueBindingExpressionRange(line, start, end)
+    const searchStart = exprRange?.start ?? start
+    const searchEnd = exprRange?.end ?? end
+    const slice = line.slice(searchStart, searchEnd)
+    if (!slice) return null
+
+    const callRegex = /[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\(/g
+    let match: RegExpExecArray | null = null
+    const target = Math.max(searchStart, Math.min(searchEnd, start))
+    let best: { distance: number; start: number; end: number } | null = null
+
+    while ((match = callRegex.exec(slice)) !== null) {
+        if (match.index == null) continue
+        const callStart = searchStart + match.index
+        const openParenInMatch = match[0].lastIndexOf('(')
+        if (openParenInMatch < 0) continue
+        const openParen = callStart + openParenInMatch
+        const closeParen = findMatchingParen(line, openParen)
+        if (closeParen == null) continue
+        const callEnd = Math.min(line.length, closeParen + 1)
+        const distance = Math.abs(callStart - target)
+        if (!best || distance < best.distance) {
+            best = { distance, start: callStart, end: callEnd }
+        }
+    }
+    if (best) return { start: best.start, end: best.end }
+
+    return focusNonCallExpressionRange(line, start, end)
+}
+
+function focusNonCallExpressionRange (line: string, start: number, end: number): { start: number; end: number } | null {
+    const exprRange = vueBindingExpressionRange(line, start, end)
+    const searchStart = exprRange?.start ?? start
+    const searchEnd = exprRange?.end ?? end
+    if (searchStart >= searchEnd) return null
+
+    let anchor = Math.max(searchStart, Math.min(searchEnd - 1, start))
+    while (anchor < searchEnd && /\s/.test(line[anchor])) anchor++
+    if (anchor >= searchEnd) anchor = Math.max(searchStart, Math.min(searchEnd - 1, end - 1))
+    while (anchor > searchStart && /\s/.test(line[anchor])) anchor--
+
+    const isExprChar = (ch: string): boolean => /[A-Za-z0-9_$.[\]]/.test(ch)
+    if (!isExprChar(line[anchor] ?? '')) {
+        let found = -1
+        for (let i = searchStart; i < searchEnd; i++) {
+            if (isExprChar(line[i] ?? '')) {
+                found = i
+                break
+            }
+        }
+        if (found < 0) return null
+        anchor = found
+    }
+
+    let left = anchor
+    while (left > searchStart && isExprChar(line[left - 1] ?? '')) left--
+    let right = anchor + 1
+    while (right < searchEnd && isExprChar(line[right] ?? '')) right++
+    if (right <= left) return null
+    return { start: left, end: right }
+}
+
+function findMatchingParen (line: string, openParenIndex: number): number | null {
+    if (openParenIndex < 0 || openParenIndex >= line.length || line[openParenIndex] !== '(') return null
+    let depth = 0
+    let quote: '"' | '\'' | null = null
+    for (let i = openParenIndex; i < line.length; i++) {
+        const ch = line[i]
+        const prev = i > 0 ? line[i - 1] : ''
+        if (quote) {
+            if (ch === quote && prev !== '\\') quote = null
+            continue
+        }
+        if ((ch === '"' || ch === '\'') && prev !== '\\') {
+            quote = ch
+            continue
+        }
+        if (ch === '(') {
+            depth++
+            continue
+        }
+        if (ch === ')') {
+            depth--
+            if (depth === 0) return i
+        }
+    }
+    return null
+}
+
+function markerRangesForLine (lineNo: number, markers: BranchMarker[]): LineOverlaySegment[] {
     if (!markers.length) return []
     const sourceLine = sourceLines.value[lineNo - 1] ?? ''
     if (!sourceLine.length) return []
@@ -273,25 +497,35 @@ function markerRangesForLine (lineNo: number, markers: Array<{ column: number }>
             const start = nearestVisibleCharIndex(sourceLine, marker.column)
             const isBranchSymbol = isBranchSymbolAt(sourceLine, start)
             const ifConditionRange = vueIfConditionRange(sourceLine)
+            const jsConditionRange = jsIfConditionRange(sourceLine)
+            const kind = marker.label === 'I' ? 'if' : marker.label === 'E' ? 'else' : 'branch'
+            const tooltip = marker.label === 'I'
+                ? 'IF path not taken'
+                : marker.label === 'E'
+                    ? 'ELSE path not taken'
+                    : 'Branch not covered'
             if (!isBranchSymbol && ifConditionRange) {
-                return ifConditionRange
+                return { ...ifConditionRange, kind, tooltip }
+            }
+            if (!isBranchSymbol && (marker.label === 'I' || marker.label === 'E') && jsConditionRange) {
+                return { ...jsConditionRange, kind, tooltip }
             }
             if (!isBranchSymbol) {
                 const nearbyIdentifier = nearestIdentifierRange(sourceLine, start)
                 if (!nearbyIdentifier) return null
                 if (!isComparisonOperatorAt(sourceLine, start)) return null
-                return nearbyIdentifier
+                return { ...nearbyIdentifier, kind, tooltip }
             }
 
             const identifierRange = nearestIdentifierRange(sourceLine, start)
-            if (identifierRange) return identifierRange
+            if (identifierRange) return { ...identifierRange, kind, tooltip }
             const pair = sourceLine.slice(start, start + 2)
             const end = pair === '&&' || pair === '||'
                 ? Math.min(sourceLine.length, start + 2)
                 : Math.min(sourceLine.length, start + 1)
-            return { start, end }
+            return { start, end, kind, tooltip }
         })
-        .filter((range): range is { start: number; end: number } => range != null)
+        .filter((range): range is LineOverlaySegment => range != null)
 }
 
 function focusRangeAroundBranchToken (
@@ -301,11 +535,68 @@ function focusRangeAroundBranchToken (
 ): { start: number; end: number } | null {
     const slice = line.slice(start, end)
     if (!slice) return null
-    const tokenMatch = slice.match(/&&|\|\||\?|\bif\b|\belse\b/)
-    if (!tokenMatch || tokenMatch.index == null) return null
-    const tokenStart = start + tokenMatch.index
-    const tokenLength = tokenMatch[0].length
+    const tokenRegex = /&&|\|\||\?|\bif\b|\belse\b/g
+    let tokenMatch: RegExpExecArray | null = null
+    let lastMatch: RegExpExecArray | null = null
+    while ((tokenMatch = tokenRegex.exec(slice)) !== null) {
+        lastMatch = tokenMatch
+    }
+    if (!lastMatch || lastMatch.index == null) return null
+    const tokenStart = start + lastMatch.index
+    const token = lastMatch[0]
+    const tokenLength = token.length
+    if (token === '&&' || token === '||') {
+        const rhsRange = logicalRightOperandRange(line, tokenStart + tokenLength)
+        if (rhsRange) return rhsRange
+    }
     return { start: tokenStart, end: tokenStart + tokenLength }
+}
+
+function logicalRightOperandRange (line: string, startIndex: number): { start: number; end: number } | null {
+    let start = startIndex
+    while (start < line.length && /\s/.test(line[start])) start++
+    if (start >= line.length) return null
+
+    let end = start
+    let depth = 0
+    while (end < line.length) {
+        const pair = line.slice(end, end + 2)
+        const ch = line[end]
+
+        if (ch === '(') {
+            depth++
+            end++
+            continue
+        }
+        if (ch === ')') {
+            if (depth === 0) break
+            depth--
+            end++
+            continue
+        }
+        if (depth === 0 && (pair === '&&' || pair === '||' || ch === '?' || ch === ':')) {
+            break
+        }
+        end++
+    }
+
+    while (end > start && /\s/.test(line[end - 1])) end--
+    if (end <= start) return null
+    return { start, end }
+}
+
+function focusRangeNearEnd (line: string, start: number, end: number): { start: number; end: number } | null {
+    let trimmedEnd = Math.max(start + 1, Math.min(line.length, end))
+    while (trimmedEnd > start && /\s/.test(line[trimmedEnd - 1])) trimmedEnd--
+    if (trimmedEnd <= start) return null
+
+    // Keep fallback tight: mimic Istanbul's small tail spans on non-token branches.
+    const fallbackWidth = 14
+    const fallbackStart = Math.max(start, trimmedEnd - fallbackWidth)
+    let firstVisible = fallbackStart
+    while (firstVisible < trimmedEnd && /\s/.test(line[firstVisible])) firstVisible++
+    if (firstVisible >= trimmedEnd) return null
+    return { start: firstVisible, end: trimmedEnd }
 }
 
 function isBranchSymbolAt (line: string, index: number): boolean {
@@ -335,6 +626,98 @@ function vueIfConditionRange (line: string): { start: number; end: number } | nu
     const end = fullStart + conditionEndInMatch
     if (start >= end) return null
     return { start, end }
+}
+
+function jsIfConditionRange (line: string): { start: number; end: number } | null {
+    const match = line.match(/\bif\s*\((.+)\)/)
+    if (!match || match.index == null) return null
+    const full = match[0]
+    const fullStart = match.index
+    const openIdx = full.indexOf('(')
+    const closeIdx = full.lastIndexOf(')')
+    if (openIdx === -1 || closeIdx <= openIdx + 1) return null
+    return {
+        start: fullStart + openIdx + 1,
+        end: fullStart + closeIdx,
+    }
+}
+
+function vueBindingExpressionRange (
+    line: string,
+    rangeStartHint?: number,
+    rangeEndHint?: number,
+): { start: number; end: number } | null {
+    const bindingRegex = /(?:v-[\w-]+|:[\w-]+)\s*=\s*(["'])/g
+    const ranges: Array<{ start: number; end: number }> = []
+    let match: RegExpExecArray | null = null
+
+    while ((match = bindingRegex.exec(line)) !== null) {
+        if (match.index == null) continue
+        const quoteChar = match[1]
+        const quotePosInMatch = match[0].lastIndexOf(quoteChar)
+        if (quotePosInMatch < 0) continue
+        const openingQuoteIndex = match.index + quotePosInMatch
+        const expressionStart = openingQuoteIndex + 1
+        let expressionEnd = -1
+        for (let i = expressionStart; i < line.length; i++) {
+            if (line[i] === quoteChar && line[i - 1] !== '\\') {
+                expressionEnd = i
+                break
+            }
+        }
+        if (expressionEnd > expressionStart) {
+            ranges.push({ start: expressionStart, end: expressionEnd })
+        }
+    }
+
+    if (!ranges.length) return null
+    if (rangeStartHint == null || rangeEndHint == null) return ranges[0]
+
+    const overlapping = ranges.find((range) => rangeStartHint < range.end && rangeEndHint > range.start)
+    return overlapping ?? ranges[0]
+}
+
+function clampToVueBindingExpression (
+    line: string,
+    start: number,
+    end: number,
+): { start: number; end: number } | null {
+    const exprRange = vueBindingExpressionRange(line, start, end)
+    if (!exprRange) return null
+    const overlaps = start < exprRange.end && end > exprRange.start
+    if (!overlaps) return null
+    const clampedStart = Math.max(start, exprRange.start)
+    const clampedEnd = Math.max(clampedStart + 1, Math.min(end, exprRange.end))
+    return { start: clampedStart, end: clampedEnd }
+}
+
+function vueBranchTailRange (line: string, start: number, end: number): { start: number; end: number } | null {
+    const exprRange = vueBindingExpressionRange(line, start, end)
+    if (!exprRange) return null
+    const overlaps = start < exprRange.end && end > exprRange.start
+    if (!overlaps) return null
+
+    const exprText = line.slice(exprRange.start, exprRange.end)
+    const branchTokenRegex = /&&|\|\||\?|\bif\b|\belse\b/g
+    let match: RegExpExecArray | null = null
+    let lastMatch: RegExpExecArray | null = null
+    while ((match = branchTokenRegex.exec(exprText)) !== null) {
+        lastMatch = match
+    }
+    if (!lastMatch || lastMatch.index == null) return null
+
+    const token = lastMatch[0]
+    let tailStart = exprRange.start + lastMatch.index
+    if ((token === '&&' || token === '||') && tailStart > exprRange.start && /\s/.test(line[tailStart - 1])) {
+        tailStart -= 1
+    }
+
+    let tailEnd = exprRange.end
+    const closingQuoteIndex = exprRange.end
+    if (closingQuoteIndex < line.length && (line[closingQuoteIndex] === '"' || line[closingQuoteIndex] === '\'')) {
+        tailEnd = closingQuoteIndex + 1
+    }
+    return { start: tailStart, end: Math.max(tailStart + 1, tailEnd) }
 }
 
 function nearestVisibleCharIndex (line: string, markerColumn: number): number {
@@ -391,19 +774,70 @@ function isComparisonOperatorAt (line: string, index: number): boolean {
     if (['<=', '>=', '==', '!='].includes(pair)) return true
     return ['<', '>', '=', '!'].includes(line[index] ?? '')
 }
+
+function markerTooltip (marker: BranchMarker): string {
+    if (marker.label === 'I') return 'IF path not taken'
+    if (marker.label === 'E') return 'ELSE path not taken'
+    return `Uncovered branch: ${marker.label}`
+}
+
+function markerLeftCh (marker: BranchMarker): number {
+    const label = marker.label
+    const estimatedLabelWidth = (label.length * 0.64) + 0.5
+    return Math.max(0, marker.column - estimatedLabelWidth)
+}
+
+function overlayClass (kind: LineOverlaySegment['kind']): string {
+    if (kind === 'if') return 'coverage-overlay coverage-overlay-if'
+    if (kind === 'else') return 'coverage-overlay coverage-overlay-else'
+    if (kind === 'function') return 'coverage-overlay coverage-overlay-function'
+    return 'coverage-overlay coverage-overlay-branch'
+}
 </script>
 
 <style scoped>
-.coverage-branch-overlay {
+.coverage-overlay {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
     height: 1.15em;
     pointer-events: auto;
-    background-color: rgb(251 191 36 / 0.18);
     border-radius: 2px;
-    border-bottom: 2px solid rgb(251 191 36 / 0.95);
     z-index: 1;
     cursor: help;
+}
+
+.coverage-inline-marker {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-54%);
+    font-size: 0.60rem;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    padding: 0.05rem 0.22rem;
+    border-radius: 2px;
+    background-color: rgb(250 204 21 / 0.90);
+    color: rgb(17 24 39 / 0.98);
+    box-shadow: 0 0 0 1px rgb(15 23 42 / 0.65);
+    pointer-events: auto;
+    cursor: help;
+    z-index: 3;
+}
+
+.coverage-overlay-branch {
+    background-color: rgb(250 204 21 / 0.36);
+}
+
+.coverage-overlay-if {
+    background-color: rgb(244 63 94 / 0.16);
+}
+
+.coverage-overlay-else {
+    background-color: rgb(251 113 133 / 0.16);
+}
+
+.coverage-overlay-function {
+    background-color: rgb(251 113 133 / 0.24);
 }
 </style>

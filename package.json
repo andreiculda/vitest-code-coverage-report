@@ -4,6 +4,15 @@
     "private": false,
     "type": "module",
     "description": "Modern self-hosted report for Istanbul/V8 coverage-final.json",
+    "license": "GPL-3.0-or-later",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/andreiculda/vitest-code-coverage-report.git"
+    },
+    "homepage": "https://github.com/andreiculda/vitest-code-coverage-report#readme",
+    "bugs": {
+        "url": "https://github.com/andreiculda/vitest-code-coverage-report/issues"
+    },
     "bin": {
         "code-coverage-report": "bin/code-coverage-report.js"
     },

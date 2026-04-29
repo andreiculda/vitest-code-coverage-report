@@ -11,7 +11,8 @@ import { computed, ref, shallowRef } from 'vue'
 function branchMarkerLabel (type: string, index: number): string {
     switch (type) {
         case 'if':
-            return index === 0 ? 'IF' : 'EL'
+            // Keep compact labels; SourceViewer maps I->IF and E->ELSE.
+            return index === 0 ? 'I' : 'E'
         case 'cond-expr':
             return index === 0 ? '?' : ':'
         case 'binary-expr':
@@ -82,6 +83,7 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
 
     const uncoveredBranchRangesByLine = new Map<number, Array<{ start: number; end: number }>>()
     const uncoveredBranchMarkersByLine = new Map<number, BranchMarker[]>()
+    const uncoveredFunctionRangesByLine = new Map<number, Array<{ start: number; end: number }>>()
     for (const id of Object.keys(file.b)) {
         const branchHits = file.b[id] ?? []
         const branchMeta = file.branchMap[id]
@@ -107,8 +109,9 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
             )
 
             const markerLabel = branchMarkerLabel(branchType, i)
-            const markerLine = startLine
-            const markerColumn = startCol
+            const isIfElsePathMarker = markerLabel === 'I' || markerLabel === 'E'
+            const markerLine = isIfElsePathMarker ? (fallbackLine ?? startLine) : startLine
+            const markerColumn = isIfElsePathMarker ? fallbackColumn : startCol
             const existingMarkers = uncoveredBranchMarkersByLine.get(markerLine) ?? []
             const hasSameMarker = existingMarkers.some(
                 (marker) =>
@@ -127,18 +130,49 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
                 uncoveredBranchMarkersByLine.set(markerLine, existingMarkers)
             }
 
-            for (let line = startLine; line <= endLine; line++) {
-                const rangeStart = line === startLine ? startCol : 0
-                const rangeEnd = line === endLine ? endCol : Number.MAX_SAFE_INTEGER
-                const current = uncoveredBranchRangesByLine.get(line) ?? []
-                current.push({ start: rangeStart, end: rangeEnd })
-                uncoveredBranchRangesByLine.set(line, current)
+            // Match Istanbul behavior: "if" branch paths are represented via
+            // missing-if-branch markers (I/ELSE), not generic branch underlines.
+            if (!isIfElsePathMarker) {
+                for (let line = startLine; line <= endLine; line++) {
+                    const rangeStart = line === startLine ? startCol : 0
+                    const rangeEnd = line === endLine ? endCol : Number.MAX_SAFE_INTEGER
+                    const current = uncoveredBranchRangesByLine.get(line) ?? []
+                    current.push({ start: rangeStart, end: rangeEnd })
+                    uncoveredBranchRangesByLine.set(line, current)
+                }
             }
         }
     }
 
     for (const markers of uncoveredBranchMarkersByLine.values()) {
         markers.sort((a, b) => a.column - b.column || a.index - b.index)
+    }
+
+    for (const id of fnIds) {
+        if ((file.f[id] ?? 0) > 0) continue
+        const fnMeta = file.fnMap[id]
+        if (!fnMeta) continue
+        // Keep function highlighting tight (Istanbul-like fstat-no behavior),
+        // but capture both declaration and location anchors so inline handlers
+        // (e.g. template listener expressions) are not missed.
+        const candidates = [fnMeta.decl, fnMeta.loc].filter(Boolean)
+        const seen = new Set<string>()
+        for (const loc of candidates) {
+            const startLine = loc?.start?.line
+            if (!startLine) continue
+            const startCol = Math.max(0, loc?.start?.column ?? 0)
+            const sameLineEnd = (loc?.end?.line ?? startLine) === startLine
+            const endCol = Math.max(
+                startCol + 1,
+                sameLineEnd ? (loc?.end?.column ?? (startCol + 1)) : (startCol + 1),
+            )
+            const key = `${startLine}:${startCol}:${endCol}`
+            if (seen.has(key)) continue
+            seen.add(key)
+            const current = uncoveredFunctionRangesByLine.get(startLine) ?? []
+            current.push({ start: startCol, end: endCol })
+            uncoveredFunctionRangesByLine.set(startLine, current)
+        }
     }
 
     const normalizedProjectRoot = projectRoot.replace(/\\/g, '/')
@@ -158,6 +192,7 @@ function computeFileStats(absPath: string, file: IstanbulFileCoverage, projectRo
         lineHits,
         uncoveredBranchRangesByLine,
         uncoveredBranchMarkersByLine,
+        uncoveredFunctionRangesByLine,
     }
 }
 

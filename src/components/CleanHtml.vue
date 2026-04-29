@@ -2,7 +2,7 @@
     <component
         :is="tag"
         v-bind="$attrs"
-        @click="emit('click')"
+        @click="emit('click', $event)"
     >
         <span
             class="sanitized-value"
@@ -20,7 +20,9 @@ const {
     html?: string,
     tag?: string,
 }>()
-const emit = defineEmits(['click'])
+const emit = defineEmits<{
+    click: [value: MouseEvent],
+}>()
 
 function cleanHtml (html: string) {
     return html
