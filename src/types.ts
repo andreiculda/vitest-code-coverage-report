@@ -52,6 +52,7 @@ export interface FileStats {
     lineHits: Map<number, number>
     uncoveredBranchRangesByLine: Map<number, Array<{ start: number; end: number }>>
     uncoveredBranchMarkersByLine: Map<number, BranchMarker[]>
+    uncoveredFunctionRangesByLine: Map<number, Array<{ start: number; end: number }>>
 }
 
 export interface TreeNode {
