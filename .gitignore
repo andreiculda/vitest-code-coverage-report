@@ -2,3 +2,5 @@ node_modules/
 dist/
 tmp/
 commands/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

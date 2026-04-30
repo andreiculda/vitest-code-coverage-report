@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 460" fill="none" role="img" aria-label="vitest-code-coverage-report dashboard preview">
+    <defs>
+        <linearGradient id="heroBg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#eef2ff" />
+            <stop offset="100%" stop-color="#fdf4ff" />
+        </linearGradient>
+        <linearGradient id="heroCard" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ffffff" />
+            <stop offset="100%" stop-color="#f8fafc" />
+        </linearGradient>
+        <linearGradient id="heroIndigo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#818cf8" />
+            <stop offset="100%" stop-color="#4f46e5" />
+        </linearGradient>
+        <linearGradient id="heroGreen" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#34d399" />
+            <stop offset="100%" stop-color="#16a34a" />
+        </linearGradient>
+        <linearGradient id="heroAmber" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#fbbf24" />
+            <stop offset="100%" stop-color="#f97316" />
+        </linearGradient>
+        <filter id="heroShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#4338ca" flood-opacity="0.18" />
+        </filter>
+    </defs>
+
+    <rect x="0" y="0" width="520" height="460" rx="28" fill="url(#heroBg)" />
+
+    <g filter="url(#heroShadow)">
+        <rect x="40" y="50" width="440" height="360" rx="20" fill="url(#heroCard)" stroke="#e2e8f0" />
+    </g>
+
+    <rect x="40" y="50" width="440" height="48" rx="20" fill="#312e81" />
+    <rect x="40" y="80" width="440" height="18" fill="#312e81" />
+    <circle cx="62" cy="74" r="5" fill="#f87171" />
+    <circle cx="80" cy="74" r="5" fill="#fbbf24" />
+    <circle cx="98" cy="74" r="5" fill="#34d399" />
+    <rect x="120" y="68" width="180" height="12" rx="6" fill="#a5b4fc" opacity="0.65" />
+
+    <g transform="translate(72,128)">
+        <circle cx="44" cy="44" r="34" stroke="#fde68a" stroke-width="10" />
+        <circle cx="44" cy="44" r="34" stroke="url(#heroGreen)" stroke-width="10"
+            stroke-linecap="round"
+            stroke-dasharray="187 214" transform="rotate(-90 44 44)" />
+        <text x="44" y="49" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+            font-size="18" font-weight="700" fill="#0f172a">87%</text>
+        <text x="44" y="106" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+            font-size="11" font-weight="600" fill="#475569">Statements</text>
+    </g>
+
+    <g transform="translate(212,128)">
+        <circle cx="44" cy="44" r="34" stroke="#fed7aa" stroke-width="10" />
+        <circle cx="44" cy="44" r="34" stroke="url(#heroAmber)" stroke-width="10"
+            stroke-linecap="round"
+            stroke-dasharray="150 214" transform="rotate(-90 44 44)" />
+        <text x="44" y="49" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+            font-size="18" font-weight="700" fill="#0f172a">70%</text>
+        <text x="44" y="106" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+            font-size="11" font-weight="600" fill="#475569">Branches</text>
+    </g>
+
+    <g transform="translate(352,128)">
+        <circle cx="44" cy="44" r="34" stroke="#c7d2fe" stroke-width="10" />
+        <circle cx="44" cy="44" r="34" stroke="url(#heroIndigo)" stroke-width="10"
+            stroke-linecap="round"
+            stroke-dasharray="201 214" transform="rotate(-90 44 44)" />
+        <text x="44" y="49" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+            font-size="18" font-weight="700" fill="#0f172a">94%</text>
+        <text x="44" y="106" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+            font-size="11" font-weight="600" fill="#475569">Lines</text>
+    </g>
+
+    <g transform="translate(64,272)">
+        <rect x="0" y="0" width="392" height="32" rx="8" fill="#f1f5f9" />
+        <circle cx="18" cy="16" r="5" fill="#22c55e" />
+        <rect x="34" y="11" width="120" height="10" rx="3" fill="#cbd5e1" />
+        <rect x="270" y="10" width="60" height="12" rx="3" fill="#bbf7d0" />
+        <rect x="338" y="11" width="40" height="10" rx="3" fill="#cbd5e1" />
+    </g>
+    <g transform="translate(64,312)">
+        <rect x="0" y="0" width="392" height="32" rx="8" fill="#f8fafc" />
+        <circle cx="18" cy="16" r="5" fill="#f59e0b" />
+        <rect x="34" y="11" width="160" height="10" rx="3" fill="#cbd5e1" />
+        <rect x="270" y="10" width="60" height="12" rx="3" fill="#fde68a" />
+        <rect x="338" y="11" width="40" height="10" rx="3" fill="#cbd5e1" />
+    </g>
+    <g transform="translate(64,352)">
+        <rect x="0" y="0" width="392" height="32" rx="8" fill="#f1f5f9" />
+        <circle cx="18" cy="16" r="5" fill="#ef4444" />
+        <rect x="34" y="11" width="100" height="10" rx="3" fill="#cbd5e1" />
+        <rect x="270" y="10" width="60" height="12" rx="3" fill="#fecaca" />
+        <rect x="338" y="11" width="40" height="10" rx="3" fill="#cbd5e1" />
+    </g>
+</svg>
