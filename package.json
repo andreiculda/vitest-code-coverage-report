@@ -32,7 +32,10 @@
         "publish:npm": "npm publish --access public",
         "release:patch": "npm version patch && npm run publish:npm",
         "release:minor": "npm version minor && npm run publish:npm",
-        "release:major": "npm version major && npm run publish:npm"
+        "release:major": "npm version major && npm run publish:npm",
+        "docs:dev": "vitepress dev docs",
+        "docs:build": "vitepress build docs",
+        "docs:preview": "vitepress preview docs"
     },
     "keywords": [
         "vitest",
@@ -55,6 +58,7 @@
         "tailwindcss": "^3.4.16",
         "typescript": "^5.8.3",
         "vite": "^7.3.1",
+        "vitepress": "^1.6.4",
         "vue-tsc": "^2.2.0"
     }
 }
