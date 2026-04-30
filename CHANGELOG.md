@@ -1,5 +1,13 @@
 # vitest-code-coverage-report
 
+## 1.2.7
+
+### Patch Changes
+
+- Add a dedicated VitePress documentation site under `docs/` with a custom logo, hero illustration, landing page, getting-started, CLI reference, configuration, features and changelog pages.
+- Add Vercel deployment config (`vercel.json`, `.vercelignore`) and a hosting guide so the docs site can be deployed with zero extra setup.
+- Update package `homepage` to point to the new documentation site.
+
 ## 1.2.6
 
 ### Patch Changes

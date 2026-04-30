@@ -9,7 +9,7 @@
         "type": "git",
         "url": "git+https://github.com/andreiculda/vitest-code-coverage-report.git"
     },
-    "homepage": "https://github.com/andreiculda/vitest-code-coverage-report#readme",
+    "homepage": "https://vitest-code-coverage-report.vercel.app",
     "bugs": {
         "url": "https://github.com/andreiculda/vitest-code-coverage-report/issues"
     },
